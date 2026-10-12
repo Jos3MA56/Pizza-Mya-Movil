@@ -1,11 +1,15 @@
+
+import React from 'react';
 import { StatusBar } from 'expo-status-bar';
-import { PedidoResumenScreen } from './src/views/screens/PedidoResumenScreen';
+
+import { AuthProvider } from './src/context/AuthContext';
+import { RootNavigator } from './src/navigation/RootNavigator';
 
 export default function App() {
   return (
-    <>
-      <PedidoResumenScreen />
+    <AuthProvider>
+      <RootNavigator />
       <StatusBar style="auto" />
-    </>
+    </AuthProvider>
   );
 }
