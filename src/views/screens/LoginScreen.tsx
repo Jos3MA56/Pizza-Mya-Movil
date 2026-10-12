@@ -44,6 +44,7 @@ export function LoginScreen() {
             source={require('../../../assets/logo.png')}
             style={styles.logo}
             resizeMode="contain"
+            accessibilityLabel="Logo de Pizza Mya"
           />
 
           <Text style={styles.brand}>Pizza Mya</Text>
@@ -51,18 +52,20 @@ export function LoginScreen() {
           <Text
             style={styles.subtitle}
             numberOfLines={2}
-         >
-            Sistema móvil para meseros
+          >
+            Sistema móvil para empleados
           </Text>
         </View>
 
         {/* Formulario */}
         <View style={styles.form}>
-          <Text style={styles.label}>Usuario / ID Mesero</Text>
+          <Text style={styles.label}>
+            Correo electrónico
+          </Text>
 
           <View style={styles.inputContainer}>
             <Feather
-              name="user"
+              name="mail"
               size={18}
               color="#9A9A9A"
               style={styles.inputIcon}
@@ -70,18 +73,22 @@ export function LoginScreen() {
 
             <TextInput
               style={styles.input}
-              placeholder="pablo.mesero"
+              placeholder="correo@ejemplo.com"
               placeholderTextColor="#A0A0A0"
+              keyboardType="email-address"
               autoCapitalize="none"
               autoCorrect={false}
+              autoComplete="email"
               value={correo}
               onChangeText={setCorreo}
               editable={!cargando}
-              accessibilityLabel="Usuario o ID de mesero"
+              accessibilityLabel="Correo electrónico"
             />
           </View>
 
-          <Text style={styles.label}>Contraseña</Text>
+          <Text style={styles.label}>
+            Contraseña
+          </Text>
 
           <View style={styles.inputContainer}>
             <Feather
@@ -97,6 +104,7 @@ export function LoginScreen() {
               placeholderTextColor="#A0A0A0"
               secureTextEntry={!mostrarPassword}
               autoCapitalize="none"
+              autoComplete="password"
               value={password}
               onChangeText={setPassword}
               editable={!cargando}
@@ -104,7 +112,9 @@ export function LoginScreen() {
             />
 
             <TouchableOpacity
-              onPress={() => setMostrarPassword(!mostrarPassword)}
+              onPress={() =>
+                setMostrarPassword(!mostrarPassword)
+              }
               disabled={cargando}
               accessibilityRole="button"
               accessibilityLabel={
@@ -123,12 +133,15 @@ export function LoginScreen() {
 
           {/* Mensaje de error */}
           {error ? (
-            <Text style={styles.error} accessibilityRole="alert">
+            <Text
+              style={styles.error}
+              accessibilityRole="alert"
+            >
               {error}
             </Text>
           ) : null}
 
-          {/* Iniciar sesión */}
+          {/* Botón de inicio de sesión */}
           <TouchableOpacity
             style={[
               styles.loginButton,
@@ -137,6 +150,7 @@ export function LoginScreen() {
             onPress={login}
             disabled={cargando}
             accessibilityRole="button"
+            accessibilityLabel="Iniciar sesión"
           >
             {cargando ? (
               <ActivityIndicator color="#FFFFFF" />
@@ -151,6 +165,7 @@ export function LoginScreen() {
         {/* Indicador provisional */}
         <View style={styles.statusContainer}>
           <View style={styles.statusDot} />
+
           <Text style={styles.statusText}>
             Modo demostración
           </Text>
@@ -176,6 +191,7 @@ const styles = StyleSheet.create({
   header: {
     alignItems: 'center',
     marginBottom: 42,
+    width: '100%',
   },
 
   logo: {
@@ -199,7 +215,8 @@ const styles = StyleSheet.create({
     marginBottom: 26,
     width: '100%',
     flexShrink: 1,
-},
+  },
+
   form: {
     width: '100%',
   },

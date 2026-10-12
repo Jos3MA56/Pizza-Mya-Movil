@@ -7,36 +7,35 @@ import React, {
 } from 'react';
 
 import type { Usuario, RolUsuario } from '../models/Usuario';
+import { autenticarUsuario } from '../repositories/AuthRepository';
+import { ApiHttpError } from '../services/api/ApiClient';
 
 interface AuthContextType {
   usuario: Usuario | null;
-  iniciarSesion: (correo: string, password: string) => Promise<boolean>;
+  token: string | null;
+  iniciarSesion: (
+    correo: string,
+    password: string
+  ) => Promise<boolean>;
   cerrarSesion: () => void;
 }
 
-const AuthContext = createContext<AuthContextType | undefined>(undefined);
+const AuthContext = createContext<AuthContextType | undefined>(
+  undefined
+);
 
-// Usuarios exclusivamente para pruebas locales.
-// Nunca utilizar este mecanismo en producción.
-const usuariosPrueba: Array<Usuario & {
-  correo: string;
-  password: string;
-}> = [
-  {
-    id: '1',
-    nombre: 'Mesero de prueba',
-    correo: 'mesero@pizzamya.test',
-    password: 'Demo1234',
-    rol: 'mesero',
-  },
-  {
-    id: '2',
-    nombre: 'Cocina de prueba',
-    correo: 'cocina@pizzamya.test',
-    password: 'Demo1234',
-    rol: 'cocina',
-  },
-];
+function normalizarRol(rol: string): RolUsuario | null {
+  switch (rol.trim().toUpperCase()) {
+    case 'MESERO':
+      return 'mesero';
+
+    case 'COCINA':
+      return 'cocina';
+
+    default:
+      return null;
+  }
+}
 
 export function AuthProvider({
   children,
@@ -44,37 +43,78 @@ export function AuthProvider({
   children: ReactNode;
 }) {
   const [usuario, setUsuario] = useState<Usuario | null>(null);
+  const [token, setToken] = useState<string | null>(null);
 
   const iniciarSesion = async (
     correo: string,
     password: string
   ): Promise<boolean> => {
-    const encontrado = usuariosPrueba.find(
-      (u) =>
-        u.correo.toLowerCase() === correo.trim().toLowerCase() &&
-        u.password === password
-    );
+    try {
+      const resultado = await autenticarUsuario(
+        correo.trim().toLowerCase(),
+        password
+      );
 
-    if (!encontrado) {
-      return false;
+      if (!resultado.user.activo) {
+        throw new Error('La cuenta está desactivada.');
+      }
+
+      const rol = normalizarRol(resultado.user.rol);
+
+      if (!rol) {
+        throw new Error(
+          'Tu cuenta no tiene acceso a esta aplicación.'
+        );
+      }
+
+      setToken(resultado.token);
+
+      setUsuario({
+        id: resultado.user.id,
+        nombre: resultado.user.nombres,
+        rol,
+      });
+
+      return true;
+    } catch (error) {
+      setUsuario(null);
+      setToken(null);
+
+      if (error instanceof ApiHttpError) {
+        if (error.status === 401) {
+          throw new Error('Correo o contraseña incorrectos.');
+        }
+
+        if (error.status === 403) {
+          throw new Error(
+            'Tu cuenta está desactivada o no tiene acceso.'
+          );
+        }
+
+        if (error.status === 429) {
+          throw new Error(
+            'Demasiados intentos. Intenta nuevamente más tarde.'
+          );
+        }
+      }
+
+      throw error;
     }
-
-    setUsuario({
-      id: encontrado.id,
-      nombre: encontrado.nombre,
-      rol: encontrado.rol as RolUsuario,
-    });
-
-    return true;
   };
 
   const cerrarSesion = () => {
     setUsuario(null);
+    setToken(null);
   };
 
   return (
     <AuthContext.Provider
-      value={{ usuario, iniciarSesion, cerrarSesion }}
+      value={{
+        usuario,
+        token,
+        iniciarSesion,
+        cerrarSesion,
+      }}
     >
       {children}
     </AuthContext.Provider>

@@ -14,6 +14,8 @@ export function useLoginViewModel() {
   };
 
   const login = async (): Promise<void> => {
+    if (cargando) return;
+
     setError("");
 
     if (!correo.trim() || !password.trim()) {
@@ -29,13 +31,24 @@ export function useLoginViewModel() {
     setCargando(true);
 
     try {
-      const resultado = await iniciarSesion(correo.trim(), password);
+      console.log("[LOGIN] Botón presionado. Intentando autenticar...");
+
+      const resultado = await iniciarSesion(
+        correo.trim().toLowerCase(),
+        password,
+      );
+
+      console.log("[LOGIN] Resultado:", resultado);
 
       if (!resultado) {
-        setError("Correo o contraseña incorrectos.");
+        setError("No se pudo iniciar sesión.");
       }
-    } catch {
-      setError("Ocurrió un error al iniciar sesión.");
+    } catch (err) {
+      console.error("[LOGIN] Error:", err);
+
+      setError(
+        err instanceof Error ? err.message : "No se pudo iniciar sesión.",
+      );
     } finally {
       setCargando(false);
     }
