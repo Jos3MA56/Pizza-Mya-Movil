@@ -161,15 +161,6 @@ export function LoginScreen() {
             )}
           </TouchableOpacity>
         </View>
-
-        {/* Indicador provisional */}
-        <View style={styles.statusContainer}>
-          <View style={styles.statusDot} />
-
-          <Text style={styles.statusText}>
-            Modo demostración
-          </Text>
-        </View>
       </ScrollView>
     </KeyboardAvoidingView>
   );
