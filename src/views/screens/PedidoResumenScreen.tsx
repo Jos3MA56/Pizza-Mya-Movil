@@ -194,18 +194,32 @@ export function PedidoResumenScreen({
               ))
             )}
 
-              <Pressable
-                style={styles.agregar}
-                onPress={onEditarComanda}
-                accessibilityRole="button"
-              >
-              <Text style={styles.agregarTexto}>
-                ✎ Editar comanda
-              </Text>
-              <Text style={styles.agregarTexto}>
-                + Agregar productos
-              </Text>
-            </Pressable>
+             
+{/* ACCIONES DEL PEDIDO */}
+<View style={styles.accionesPedido}>
+  <Pressable
+    style={styles.botonEditar}
+    onPress={onEditarComanda}
+    accessibilityRole="button"
+    accessibilityLabel="Editar comanda"
+  >
+    <Text style={styles.textoEditar}>
+      ✎ Editar comanda
+    </Text>
+  </Pressable>
+
+  <Pressable
+    style={styles.botonAgregar}
+    onPress={onAgregarProductos}
+    accessibilityRole="button"
+    accessibilityLabel="Agregar productos"
+  >
+    <Text style={styles.textoAgregar}>
+      + Agregar productos
+    </Text>
+  </Pressable>
+</View>
+
 
             <View style={styles.observaciones}>
               <Text style={styles.observacionesTitulo}>
@@ -511,4 +525,34 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     color: C.blanco,
   },
+  
+accionesPedido: {
+  marginTop: 16,
+  gap: 12,
+},
+botonEditar: {
+  backgroundColor: '#FFFFFF',
+  borderWidth: 1.5,
+  borderColor: '#991F19',
+  borderRadius: 13,
+  paddingVertical: 16,
+  alignItems: 'center',
+},
+textoEditar: {
+  color: '#991F19',
+  fontSize: 15,
+  fontWeight: '800',
+},
+botonAgregar: {
+  backgroundColor: '#FF7000',
+  borderRadius: 13,
+  paddingVertical: 17,
+  alignItems: 'center',
+},
+textoAgregar: {
+  color: '#FFFFFF',
+  fontSize: 16,
+  fontWeight: '800',
+},
+
 });
