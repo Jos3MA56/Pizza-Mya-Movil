@@ -6,7 +6,8 @@ import React, {
   type ReactNode,
 } from 'react';
 
-import type { Usuario, RolUsuario } from '../models/Usuario';
+import type { Usuario } from '../models/Usuario';
+import { normalizarRol } from '../utils/normalizarRol';
 import { autenticarUsuario } from '../repositories/AuthRepository';
 import { ApiHttpError } from '../services/api/ApiClient';
 
@@ -23,19 +24,6 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(
   undefined
 );
-
-function normalizarRol(rol: string): RolUsuario | null {
-  switch (rol.trim().toUpperCase()) {
-    case 'MESERO':
-      return 'mesero';
-
-    case 'COCINA':
-      return 'cocina';
-
-    default:
-      return null;
-  }
-}
 
 export function AuthProvider({
   children,
