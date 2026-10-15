@@ -1,0 +1,43 @@
+name: Semgrep - Analisis SAST
+
+on:
+  push:
+    branches:
+      - feature/analisis-seguridad-sast-dast
+
+permissions:
+  contents: read
+
+jobs:
+  semgrep:
+    name: Analisis de seguridad
+    runs-on: ubuntu-latest
+
+    container:
+      image: semgrep/semgrep
+
+    steps:
+      - name: Obtener codigo del repositorio
+        uses: actions/checkout@v4
+
+      - name: Ejecutar reglas generales de seguridad
+        run: |
+          semgrep scan \
+            --config p/security-audit \
+            --json \
+            --output semgrep-results.json \
+            src/
+
+      - name: Ejecutar reglas personalizadas
+        run: |
+          semgrep scan \
+            --config .semgrep/semgrep.yml \
+            src/
+
+      - name: Guardar reporte de seguridad
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: reporte-semgrep
+          path: semgrep-results.json
+          if-no-files-found: warn
