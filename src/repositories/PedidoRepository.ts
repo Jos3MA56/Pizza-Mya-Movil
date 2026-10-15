@@ -1,14 +1,23 @@
-import type { Pedido } from '../models/Pedido';
+import type { Pedido, ProductoComanda } from "../models/Pedido";
 
-/** Observador que recibe el estado actualizado de un pedido. */
 export type ObservadorPedido = (pedido: Pedido) => void;
 
-/**
- * Contrato de acceso a pedidos independiente de su origen de datos.
- * Las implementaciones remotas o persistentes se abordarán en otras tareas.
- */
 export interface PedidoRepository {
   obtenerPorId(id: string): Promise<Pedido | null>;
+
   guardar(pedido: Pedido): Promise<void>;
+
   suscribir(id: string, observador: ObservadorPedido): () => void;
+
+  obtenerComandaPorMesa(mesaId: number): Promise<Pedido | null>;
+
+  listarComandasActivas(): Promise<Pedido[]>;
+
+  crearComanda(mesaId: number, usuarioId: string): Promise<Pedido>;
+
+  agregarProducto(
+    pedidoId: string,
+    producto: ProductoComanda,
+    usuarioId: string,
+  ): Promise<Pedido>;
 }
