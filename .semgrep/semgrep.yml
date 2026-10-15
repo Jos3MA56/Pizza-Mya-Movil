@@ -1,17 +1,23 @@
+
 rules:
-  - id: pizza-mya-console-sensitive-data
+  - id: pizza-mya-logging-sensitive-data
     languages:
       - typescript
       - javascript
     severity: WARNING
     message: >
-      Revisar si se están mostrando datos sensibles
-      en los registros de la aplicación.
+      Posible exposición de información sensible
+      mediante registros de consola.
+      Revisar que no se impriman tokens o contraseñas.
     patterns:
-      - pattern-either:
-          - pattern: console.log($TOKEN)
-          - pattern: console.log($PASSWORD)
-          - pattern: console.log($USER)
+      - pattern: console.$METHOD(..., $DATA, ...)
+      - metavariable-regex:
+          metavariable: $DATA
+          regex: (?i).*(token|password|contrasena|contraseña|secret|jwt).*
     metadata:
       category: security
       project: pizza-mya-movil
+      technology:
+        - react-native
+        - expo
+``
