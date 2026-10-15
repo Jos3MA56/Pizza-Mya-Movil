@@ -11,6 +11,19 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+
+import {
+  INGREDIENTES_DEMO,
+  INGREDIENTES_PARA_RETIRAR,
+  MASAS_DEMO,
+  ORILLAS_DEMO,
+} from '../../data/opcionesPersonalizacionDemo';
+
+import type {
+  OpcionAdicional,
+} from '../../models/PersonalizacionPizza';
+
+
 import type {
   TamanioPizza,
   ModalidadPizza,
@@ -70,6 +83,35 @@ export function PersonalizarPizzaScreen({
   const [segunda, setSegunda] = useState('pepperoni');
   const [cantidad, setCantidad] = useState(1);
   const [observaciones, setObservaciones] = useState('');
+  
+const [extrasSeleccionados, setExtrasSeleccionados] =
+  useState<OpcionAdicional[]>([]);
+
+const [ingredientesSin, setIngredientesSin] =
+  useState<string[]>([]);
+
+const [masaSeleccionada, setMasaSeleccionada] =
+  useState<OpcionAdicional>(MASAS_DEMO[0]);
+
+const [orillaSeleccionada, setOrillaSeleccionada] =
+  useState<OpcionAdicional>(ORILLAS_DEMO[0]);
+
+const alternarExtra = (extra: OpcionAdicional) => {
+  setExtrasSeleccionados((anteriores) =>
+    anteriores.some((item) => item.id === extra.id)
+      ? anteriores.filter((item) => item.id !== extra.id)
+      : [...anteriores, extra]
+  );
+};
+
+const alternarIngredienteSin = (nombre: string) => {
+  setIngredientesSin((anteriores) =>
+    anteriores.includes(nombre)
+      ? anteriores.filter((item) => item !== nombre)
+      : [...anteriores, nombre]
+  );
+};
+
 
   const personalizacion = useMemo<PersonalizacionPizza>(() => {
     const obtenerEspecialidad = (
@@ -89,12 +131,29 @@ export function PersonalizarPizzaScreen({
         modalidad === 'mitad_mitad'
           ? obtenerEspecialidad(segunda)
           : undefined,
-      ingredientesExtras: [],
-      ingredientesSin: [],
+      
+ingredientesExtras: extrasSeleccionados,
+ingredientesSin,
+masa: masaSeleccionada,
+orilla: orillaSeleccionada,
+
       cantidad,
       observaciones,
     };
-  }, [tamanio, modalidad, primera, segunda, cantidad, observaciones]);
+  
+}, [
+  tamanio,
+  modalidad,
+  primera,
+  segunda,
+  cantidad,
+  observaciones,
+  extrasSeleccionados,
+  ingredientesSin,
+  masaSeleccionada,
+  orillaSeleccionada,
+]);
+
 
   const precio = useMemo(
     () => calcularPrecioPizza(personalizacion),
@@ -290,6 +349,139 @@ export function PersonalizarPizzaScreen({
             }
         )}
 
+        
+{/* INGREDIENTES ADICIONALES */}
+<View style={styles.seccion}>
+  <Text style={styles.seccionTitulo}>
+    Ingredientes adicionales
+  </Text>
+
+  {INGREDIENTES_DEMO.map((extra) => {
+    const seleccionado = extrasSeleccionados.some(
+      (item) => item.id === extra.id
+    );
+
+    return (
+      <Pressable
+        key={extra.id}
+        style={[
+          styles.opcion,
+          seleccionado && styles.opcionActiva,
+        ]}
+        onPress={() => alternarExtra(extra)}
+        accessibilityRole="checkbox"
+        accessibilityState={{ checked: seleccionado }}
+      >
+        <View style={styles.opcionInfo}>
+          <Text style={styles.opcionNombre}>
+            {extra.nombre}
+          </Text>
+          <Text style={styles.opcionPrecio}>
+            +{dinero(extra.precioCentavos)}
+          </Text>
+        </View>
+
+        <Text style={styles.radio}>
+          {seleccionado ? '☑' : '☐'}
+        </Text>
+      </Pressable>
+    );
+  })}
+</View>
+
+{/* INGREDIENTES A RETIRAR */}
+<View style={styles.seccion}>
+  <Text style={styles.seccionTitulo}>
+    Ingredientes que no deseas
+  </Text>
+
+  {INGREDIENTES_PARA_RETIRAR.map((nombre) => {
+    const seleccionado = ingredientesSin.includes(nombre);
+
+    return (
+      <Pressable
+        key={nombre}
+        style={[
+          styles.opcion,
+          seleccionado && styles.opcionActiva,
+        ]}
+        onPress={() => alternarIngredienteSin(nombre)}
+        accessibilityRole="checkbox"
+        accessibilityState={{ checked: seleccionado }}
+      >
+        <Text style={styles.opcionNombre}>{nombre}</Text>
+        <Text style={styles.radio}>
+          {seleccionado ? '☑' : '☐'}
+        </Text>
+      </Pressable>
+    );
+  })}
+</View>
+
+{/* TIPO DE MASA */}
+<View style={styles.seccion}>
+  <Text style={styles.seccionTitulo}>
+    Tipo de masa
+  </Text>
+
+  {MASAS_DEMO.map((opcion) => (
+    <Pressable
+      key={opcion.id}
+      style={[
+        styles.opcion,
+        masaSeleccionada.id === opcion.id && styles.opcionActiva,
+      ]}
+      onPress={() => setMasaSeleccionada(opcion)}
+      accessibilityRole="radio"
+      accessibilityState={{
+        selected: masaSeleccionada.id === opcion.id,
+      }}
+    >
+      <Text style={styles.opcionNombre}>
+        {opcion.nombre}
+      </Text>
+
+      <Text style={styles.opcionPrecio}>
+        {opcion.precioCentavos
+          ? `+${dinero(opcion.precioCentavos)}`
+          : 'Sin cargo'}
+      </Text>
+    </Pressable>
+  ))}
+</View>
+
+{/* TIPO DE ORILLA */}
+<View style={styles.seccion}>
+  <Text style={styles.seccionTitulo}>
+    Tipo de orilla
+  </Text>
+
+  {ORILLAS_DEMO.map((opcion) => (
+    <Pressable
+      key={opcion.id}
+      style={[
+        styles.opcion,
+        orillaSeleccionada.id === opcion.id && styles.opcionActiva,
+      ]}
+      onPress={() => setOrillaSeleccionada(opcion)}
+      accessibilityRole="radio"
+      accessibilityState={{
+        selected: orillaSeleccionada.id === opcion.id,
+      }}
+    >
+      <Text style={styles.opcionNombre}>
+        {opcion.nombre}
+      </Text>
+
+      <Text style={styles.opcionPrecio}>
+        {opcion.precioCentavos
+          ? `+${dinero(opcion.precioCentavos)}`
+          : 'Sin cargo'}
+      </Text>
+    </Pressable>
+  ))}
+</View>
+
         <View style={styles.seccion}>
           <Text style={styles.seccionTitulo}>Cantidad</Text>
 
@@ -334,10 +526,10 @@ export function PersonalizarPizzaScreen({
         </View>
 
         <Text style={styles.nota}>
-          Ingredientes adicionales, masa, orilla y complementos
-          se incorporarán en el Paso 5 utilizando
-          las opciones disponibles del catálogo.
-        </Text>
+  Los precios mostrados son demostrativos.
+  La disponibilidad de ingredientes, masas y orillas
+  se validará con el catálogo real de Pizza Mya.
+</Text>
       </ScrollView>
 
       <View style={styles.pie}>
@@ -349,6 +541,29 @@ export function PersonalizarPizzaScreen({
             {dinero(precio.precioBaseCentavos)}
           </Text>
         </View>
+
+        
+<View style={styles.precioFila}>
+  <Text style={styles.precioEtiqueta}>Ingredientes extra</Text>
+  <Text style={styles.precioBase}>
+    +{dinero(precio.extrasCentavos)}
+  </Text>
+</View>
+
+<View style={styles.precioFila}>
+  <Text style={styles.precioEtiqueta}>Orilla</Text>
+  <Text style={styles.precioBase}>
+    +{dinero(precio.orillaCentavos)}
+  </Text>
+</View>
+
+<View style={styles.precioFila}>
+  <Text style={styles.precioEtiqueta}>Masa</Text>
+  <Text style={styles.precioBase}>
+    +{dinero(precio.masaCentavos)}
+  </Text>
+</View>
+
 
         <View style={styles.precioFila}>
           <Text style={styles.totalEtiqueta}>

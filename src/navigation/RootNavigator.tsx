@@ -12,6 +12,20 @@ import { LoginScreen } from '../views/screens/LoginScreen';
 import { MeseroHomeScreen } from '../views/screens/MeseroHomeScreen';
 import { CocinaHomeScreen } from '../views/screens/CocinaHomeScreen';
 import { EditarComandaScreen } from '../views/screens/EditarComandaScreen';
+
+import { PersonalizarPizzaScreen } from '../views/screens/PersonalizarPizzaScreen';
+
+import {
+  ComplementosScreen,
+  type ComplementoSeleccionado,
+} from '../views/screens/ComplementosScreen';
+
+import type {
+  PersonalizacionPizza,
+} from '../models/PersonalizacionPizza';
+
+import { calcularPrecioPizza } from '../services/calcularPrecioPizza';
+
 import {
   TipoPedidoScreen,
   type TipoPedido,
@@ -32,6 +46,16 @@ export type RootStackParamList = {
   EditarComanda: {
     pedidoId: string;
   };
+  
+PersonalizarPizzaDemo: {
+  pedidoId: string;
+};
+
+ComplementosDemo: {
+  pedidoId: string;
+  pizza: PersonalizacionPizza;
+};
+
 };
 
 const Stack =
@@ -95,13 +119,13 @@ function PedidoResumenRoute({
     <PedidoResumenScreen
       pedidoId={route.params.pedidoId}
       onRegresar={() => navigation.goBack()}
-      onAgregarProductos={() => {
-        Alert.alert(
-          'Agregar productos',
-          'La interfaz para agregar productos se conectará ' +
-            'con el catálogo de Pizza Mya en el siguiente paso.'
-        );
-      }}
+      
+onAgregarProductos={() => {
+  navigation.navigate('PersonalizarPizzaDemo', {
+    pedidoId: route.params.pedidoId,
+  });
+}}
+
       onEditarComanda={() => {
           navigation.navigate('EditarComanda', {
           pedidoId: route.params.pedidoId,
@@ -129,6 +153,110 @@ function EditarComandaRoute({
     />
   );
 }
+
+
+type PersonalizarPizzaRouteProps =
+  NativeStackScreenProps<
+    RootStackParamList,
+    'PersonalizarPizzaDemo'
+  >;
+
+function PersonalizarPizzaRoute({
+  navigation,
+  route,
+}: PersonalizarPizzaRouteProps) {
+  return (
+    <PersonalizarPizzaScreen
+      onRegresar={() => navigation.goBack()}
+      onContinuar={(pizza) => {
+        navigation.navigate('ComplementosDemo', {
+          pedidoId: route.params.pedidoId,
+          pizza,
+        });
+      }}
+    />
+  );
+}
+
+type ComplementosRouteProps =
+  NativeStackScreenProps<
+    RootStackParamList,
+    'ComplementosDemo'
+  >;
+
+function ComplementosRoute({
+  navigation,
+  route,
+}: ComplementosRouteProps) {
+  const { pedidoId, pizza } = route.params;
+
+  const finalizar = (
+    complementos: ComplementoSeleccionado[]
+  ) => {
+    const precioPizza = calcularPrecioPizza(pizza);
+
+    const totalComplementos = complementos.reduce(
+      (total, item) =>
+        total +
+        item.producto.precioCentavos * item.cantidad,
+      0
+    );
+
+    const totalDemostrativo =
+      (precioPizza.totalCentavos +
+        totalComplementos) / 100;
+
+    const descripcionPizza =
+      pizza.modalidad === 'mitad_mitad'
+        ? `${pizza.especialidadPrincipal.nombre} / ${
+            pizza.segundaEspecialidad?.nombre ?? ''
+          }`
+        : pizza.especialidadPrincipal.nombre;
+
+    const descripcionComplementos =
+      complementos.length > 0
+        ? complementos
+            .map(
+              (item) =>
+                `${item.cantidad} x ${item.producto.nombre}`
+            )
+            .join('\n')
+        : 'Ninguno';
+
+    Alert.alert(
+      'Vista previa de selección',
+      `Pizza: ${descripcionPizza}\n` +
+        `Tamaño: ${pizza.tamanio}\n` +
+        `Cantidad: ${pizza.cantidad}\n\n` +
+        `Complementos:\n${descripcionComplementos}\n\n` +
+        `Total de demostración: $${totalDemostrativo.toFixed(2)}\n\n` +
+        'Esta selección todavía no se guarda en el pedido. ' +
+        'Se requiere integrar el catálogo real.',
+      [
+        {
+          text: 'Seguir editando',
+          style: 'cancel',
+        },
+        {
+          text: 'Volver al pedido',
+          onPress: () => {
+            navigation.popTo('PedidoResumen', {
+              pedidoId,
+            });
+          },
+        },
+      ]
+    );
+  };
+
+  return (
+    <ComplementosScreen
+      onRegresar={() => navigation.goBack()}
+      onContinuar={finalizar}
+    />
+  );
+}
+
 
 export function RootNavigator() {
   const { usuario } = useAuth();
@@ -165,6 +293,17 @@ export function RootNavigator() {
               name="EditarComanda"
               component={EditarComandaRoute}
             />
+            
+<Stack.Screen
+  name="PersonalizarPizzaDemo"
+  component={PersonalizarPizzaRoute}
+/>
+
+<Stack.Screen
+  name="ComplementosDemo"
+  component={ComplementosRoute}
+/>
+
           </>
         ) : usuario.rol === 'cocina' ? (
           <Stack.Screen
