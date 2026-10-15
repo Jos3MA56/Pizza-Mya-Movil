@@ -1,4 +1,3 @@
-
 rules:
   - id: pizza-mya-logging-sensitive-data
     languages:
@@ -20,4 +19,3 @@ rules:
       technology:
         - react-native
         - expo
-``
