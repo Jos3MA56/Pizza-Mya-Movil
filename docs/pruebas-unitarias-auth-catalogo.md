@@ -16,8 +16,10 @@ Se implementaron pruebas automatizadas para:
 - ApiClient: 6 casos.
 - AuthRepository: 4 casos.
 - validarLogin: 7 casos.
+- normalizarRol: 10 casos.
+- AuthContext: 3 casos.
 
-Total: 17 casos unitarios.
+**Total: 30 pruebas unitarias.**
 
 Las pruebas utilizan respuestas simuladas y no
 realizan solicitudes al backend de producción.
