@@ -5,6 +5,12 @@ on:
     branches:
       - feature/analisis-seguridad-sast-dast
 
+  pull_request:
+    branches:
+      - develop
+
+  workflow_dispatch:
+
 permissions:
   contents: read
 
@@ -25,19 +31,25 @@ jobs:
           semgrep scan \
             --config p/security-audit \
             --json \
-            --output semgrep-results.json \
+            --output semgrep-general.json \
             src/
 
       - name: Ejecutar reglas personalizadas
+        if: always()
         run: |
           semgrep scan \
             --config .semgrep/semgrep.yml \
+            --json \
+            --output semgrep-personalizado.json \
             src/
 
-      - name: Guardar reporte de seguridad
+      - name: Guardar reportes de seguridad
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: reporte-semgrep
-          path: semgrep-results.json
+          name: reportes-semgrep
+          path: |
+            semgrep-general.json
+            semgrep-personalizado.json
           if-no-files-found: warn
+          retention-days: 30
