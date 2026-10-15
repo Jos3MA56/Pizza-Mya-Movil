@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { Alert } from 'react-native';
+
 import { NavigationContainer } from '@react-navigation/native';
 import {
   createNativeStackNavigator,
@@ -10,6 +10,7 @@ import {
 import { useAuth } from '../context/AuthContext';
 import { LoginScreen } from '../views/screens/LoginScreen';
 import { MeseroHomeScreen } from '../views/screens/MeseroHomeScreen';
+import { CatalogoScreen } from '../views/screens/CatalogoScreen';
 import { CocinaHomeScreen } from '../views/screens/CocinaHomeScreen';
 import { EditarComandaScreen } from '../views/screens/EditarComandaScreen';
 import {
@@ -25,6 +26,7 @@ export type RootStackParamList = {
   CocinaHome: undefined;
   AccesoNoAutorizado: undefined;
   TipoPedido: undefined;
+  Catalogo: { pedidoId?: string } | undefined;
   SeleccionMesa: undefined;
   PedidoResumen: {
     pedidoId: string;
@@ -95,13 +97,6 @@ function PedidoResumenRoute({
     <PedidoResumenScreen
       pedidoId={route.params.pedidoId}
       onRegresar={() => navigation.goBack()}
-      onAgregarProductos={() => {
-        Alert.alert(
-          'Agregar productos',
-          'La interfaz para agregar productos se conectará ' +
-            'con el catálogo de Pizza Mya en el siguiente paso.'
-        );
-      }}
       onEditarComanda={() => {
           navigation.navigate('EditarComanda', {
           pedidoId: route.params.pedidoId,
@@ -130,6 +125,14 @@ function EditarComandaRoute({
   );
 }
 
+type CatalogoRouteProps = NativeStackScreenProps<RootStackParamList, 'Catalogo'>;
+function CatalogoRoute({ navigation, route }: CatalogoRouteProps) {
+  return <CatalogoScreen pedidoId={route.params?.pedidoId}
+    onRegresar={() => navigation.goBack()}
+    onAgregado={() => navigation.goBack()}
+    onCrearPedido={() => navigation.navigate('TipoPedido')} />;
+}
+
 export function RootNavigator() {
   const { usuario } = useAuth();
 
@@ -150,6 +153,10 @@ export function RootNavigator() {
               component={MeseroHomeScreen}
             />
             <Stack.Screen
+              name="Catalogo"
+              component={CatalogoRoute}
+            />
+            <Stack.Screen
               name="TipoPedido"
               component={TipoPedidoRoute}
             />
@@ -160,7 +167,7 @@ export function RootNavigator() {
             <Stack.Screen
               name="PedidoResumen"
               component={PedidoResumenRoute}
-            />   
+            />
             <Stack.Screen
               name="EditarComanda"
               component={EditarComandaRoute}

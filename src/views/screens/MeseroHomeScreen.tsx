@@ -1,7 +1,9 @@
 
-import React from 'react';
+import React, { useEffect, useCallback } from 'react';
 import {
   View,
+  TextInput,
+  AppState,
   Text,
   Pressable,
   ScrollView,
@@ -12,7 +14,7 @@ import {
 } from 'react-native';
 
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
 
 import type {
   NativeStackNavigationProp,
@@ -23,6 +25,8 @@ import type {
 } from '../../navigation/RootNavigator';
 
 import { useAuth } from '../../context/AuthContext';
+import { procesadorAutomaticoPOS } from '../../services/sync/ProcesadorAutomaticoPOS';
+import { usePosLanConfigViewModel } from '../../viewmodels/usePosLanConfigViewModel';
 import { useComandasViewModel } from '../../viewmodels/useComandasViewModel';
 
 type Navigation =
@@ -50,9 +54,14 @@ export function MeseroHomeScreen() {
 
   const {
     comandas,
+    actualizarComandas,
     cargando,
     error,
   } = useComandasViewModel();
+
+  useFocusEffect(useCallback(() => {
+    void actualizarComandas();
+  }, [actualizarComandas]));
 
   const nombre = usuario?.nombre?.trim()?.split(' ')[0] || 'Mesero';
 
@@ -62,6 +71,73 @@ export function MeseroHomeScreen() {
       'Esta sección se implementará despues.'
     );
   };
+
+  const {
+    urlBase,
+    setUrlBase,
+    token,
+    setToken,
+    configurada,
+    procesando,
+    mensaje,
+    guardarYVerificar,
+    comprobarConexion,
+    desvincularPOS,
+  } = usePosLanConfigViewModel();
+
+  useEffect(() => {
+    if (!usuario?.id || usuario.rol !== 'mesero') {
+      return;
+    }
+
+    // Activación controlada para pruebas.
+    // En producción permanece deshabilitada.
+    const habilitada =
+      __DEV__ &&
+      process.env.EXPO_PUBLIC_POS_SYNC_DEMO === 'true';
+
+    if (!habilitada) {
+      console.log(
+        '[SYNC AUTO] Envío automático desactivado.'
+      );
+      return;
+    }
+
+    const meseroId = String(usuario.id);
+
+    const iniciar = () => {
+      try {
+        procesadorAutomaticoPOS.iniciar(meseroId);
+      } catch (error) {
+        console.warn(
+          '[SYNC AUTO] No se pudo iniciar:',
+          error instanceof Error
+            ? error.message
+            : String(error)
+        );
+      }
+    };
+
+    if (AppState.currentState === 'active') {
+      iniciar();
+    }
+
+    const suscripcion = AppState.addEventListener(
+      'change',
+      (estado) => {
+        if (estado === 'active') {
+          iniciar();
+        } else {
+          procesadorAutomaticoPOS.detener();
+        }
+      }
+    );
+
+    return () => {
+      suscripcion.remove();
+      procesadorAutomaticoPOS.detener();
+    };
+  }, [usuario?.id, usuario?.rol]);
 
   return (
     <SafeAreaView style={styles.container}>
@@ -177,6 +253,89 @@ export function MeseroHomeScreen() {
           </View>
         </View>
 
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>
+            Conexión con POS Electron
+          </Text>
+
+          <Text style={styles.info}>
+            {mensaje}
+          </Text>
+
+          {!configurada ? (
+            <>
+              <Text style={styles.label}>
+                Dirección del POS
+              </Text>
+
+              <TextInput
+                style={styles.input}
+                value={urlBase}
+                onChangeText={setUrlBase}
+                autoCapitalize="none"
+                autoCorrect={false}
+                placeholder="http://192.168.1.78:3101"
+              />
+
+              <Text style={styles.label}>
+                Token LAN de pruebas
+              </Text>
+
+              <TextInput
+                style={styles.input}
+                value={token}
+                onChangeText={setToken}
+                secureTextEntry
+                autoCapitalize="none"
+                autoCorrect={false}
+                placeholder="Token de 64 caracteres"
+              />
+
+              <Pressable
+                style={[
+                  styles.button,
+                  procesando && styles.disabled,
+                ]}
+                disabled={procesando}
+                onPress={() => void guardarYVerificar()}
+              >
+                <Text style={styles.buttonText}>
+                  Verificar y guardar conexión
+                </Text>
+              </Pressable>
+            </>
+          ) : (
+            <>
+              <Text style={styles.label}>
+                POS configurado: {urlBase}
+              </Text>
+
+              <Pressable
+                style={[
+                  styles.button,
+                  procesando && styles.disabled,
+                ]}
+                disabled={procesando}
+                onPress={() => void comprobarConexion()}
+              >
+                <Text style={styles.buttonText}>
+                  Comprobar conexión
+                </Text>
+              </Pressable>
+
+              <Pressable
+                style={styles.secondaryButton}
+                disabled={procesando}
+                onPress={() => void desvincularPOS()}
+              >
+                <Text style={styles.secondaryText}>
+                  Desvincular dispositivo
+                </Text>
+              </Pressable>
+            </>
+          )}
+        </View>
+
         {/* ACTIVIDAD RECIENTE */}
         <View style={styles.sectionHeader}>
           <Text style={styles.sectionTitle}>
@@ -279,7 +438,7 @@ export function MeseroHomeScreen() {
 
         <Pressable
           style={styles.navItem}
-          onPress={() => abrirProximamente('Menú')}
+          onPress={() => navigation.navigate('Catalogo')}
         >
           <Text style={styles.navIcon}>☰</Text>
           <Text style={styles.navLabel}>Menú</Text>
@@ -303,7 +462,10 @@ export function MeseroHomeScreen() {
                 { text: 'Volver', style: 'cancel' },
                 {
                   text: 'Cerrar sesión',
-                  onPress: cerrarSesion,
+                  onPress: () => {
+                    procesadorAutomaticoPOS.detener();
+                    void cerrarSesion();
+                  },
                 },
               ]
             )
@@ -373,6 +535,64 @@ const styles = StyleSheet.create({
   },
   scroll: {
     flex: 1,
+  },
+  info: {
+    fontSize: 14,
+    color: '#666',
+    marginTop: 10,
+    lineHeight: 20,
+  },
+  card: {
+    marginTop: 24,
+    padding: 18,
+    backgroundColor: '#FFF',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#E5E5E5',
+  },
+  cardTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#222',
+  },
+  label: {
+    fontSize: 14,
+    fontWeight: '600',
+    marginTop: 16,
+    color: '#333',
+  },
+  input: {
+    marginTop: 8,
+    backgroundColor: '#FAFAFA',
+    borderWidth: 1,
+    borderColor: '#CCC',
+    borderRadius: 8,
+    padding: 12,
+    color: '#222',
+  },
+  button: {
+    backgroundColor: '#C62828',
+    padding: 15,
+    borderRadius: 8,
+    marginTop: 20,
+    alignItems: 'center',
+  },
+  buttonText: {
+    color: '#FFF',
+    fontWeight: 'bold',
+    textAlign: 'center',
+  },
+  secondaryButton: {
+    padding: 12,
+    marginTop: 10,
+    alignItems: 'center',
+  },
+  secondaryText: {
+    color: '#C62828',
+    fontWeight: '600',
+  },
+  disabled: {
+    opacity: 0.5,
   },
   scrollContent: {
     paddingHorizontal: 17,

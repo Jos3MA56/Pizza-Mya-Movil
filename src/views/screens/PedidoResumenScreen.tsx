@@ -1,5 +1,6 @@
 
-import React from 'react';
+import React, { useState } from 'react';
+import { CatalogoScreen } from './CatalogoScreen';
 import {
   View,
   Text,
@@ -16,7 +17,6 @@ import { usePedidoResumenViewModel } from '../../viewmodels/usePedidoResumenView
 interface Props {
   pedidoId: string;
   onRegresar: () => void;
-  onAgregarProductos: () => void;
   onEditarComanda: () => void;
 }
 
@@ -34,7 +34,6 @@ const C = {
 export function PedidoResumenScreen({
   pedidoId,
   onRegresar,
-  onAgregarProductos,
   onEditarComanda,
 }: Props) {
   const {
@@ -43,6 +42,8 @@ export function PedidoResumenScreen({
     error,
     totalFormateado,
   } = usePedidoResumenViewModel(pedidoId);
+
+  const [seccion, setSeccion] = useState<'catalogo' | 'resumen'>('catalogo');
 
   const productos = pedido?.productos ?? [];
 
@@ -63,11 +64,11 @@ export function PedidoResumenScreen({
         </Pressable>
 
         <Text style={styles.titulo}>
-          Resumen del pedido
+          Comanda
         </Text>
 
         <Text style={styles.subtitulo}>
-          Revisa los productos registrados en la comanda.
+          Elige productos y revisa tu pedido sin salir de la comanda.
         </Text>
       </View>
 
@@ -93,7 +94,19 @@ export function PedidoResumenScreen({
         </View>
       ) : (
         <>
-          <ScrollView
+          <View style={styles.pestanas}>
+            <Pressable accessibilityRole="tab" accessibilityState={{ selected: seccion === 'catalogo' }}
+              onPress={() => setSeccion('catalogo')} style={[styles.pestana, seccion === 'catalogo' && styles.pestanaActiva]}>
+              <Text style={styles.agregarTexto}>Catálogo de productos</Text>
+            </Pressable>
+            <Pressable accessibilityRole="tab" accessibilityState={{ selected: seccion === 'resumen' }}
+              onPress={() => setSeccion('resumen')} style={[styles.pestana, seccion === 'resumen' && styles.pestanaActiva]}>
+              <Text style={styles.agregarTexto}>Mi pedido ({productosVisibles.reduce((n, p) => n + p.cantidad, 0)})</Text>
+            </Pressable>
+          </View>
+          {seccion === 'catalogo' ? <CatalogoScreen embebido pedidoId={pedidoId}
+            onRegresar={() => setSeccion('resumen')} onAgregado={() => undefined}
+            onCrearPedido={() => undefined} /> : <ScrollView
             style={styles.contenido}
             contentContainerStyle={styles.scroll}
             showsVerticalScrollIndicator={false}
@@ -176,6 +189,7 @@ export function PedidoResumenScreen({
 
                     <Text style={styles.productoDescripcion}>
                       {producto.categoria}
+                      {producto.tamanio ? ' · ' + producto.tamanio : ''}
                       {' · '}
                       {producto.estado.replace(/_/g, ' ')}
                     </Text>
@@ -194,17 +208,11 @@ export function PedidoResumenScreen({
               ))
             )}
 
-              <Pressable
-                style={styles.agregar}
-                onPress={onEditarComanda}
-                accessibilityRole="button"
-              >
-              <Text style={styles.agregarTexto}>
-                ✎ Editar comanda
-              </Text>
-              <Text style={styles.agregarTexto}>
-                + Agregar productos
-              </Text>
+            <Pressable style={styles.agregar} onPress={() => setSeccion('catalogo')} accessibilityRole="button">
+              <Text style={styles.agregarTexto}>+ Agregar productos</Text>
+            </Pressable>
+            <Pressable style={styles.agregar} onPress={onEditarComanda} accessibilityRole="button">
+              <Text style={styles.agregarTexto}>✎ Editar comanda</Text>
             </Pressable>
 
             <View style={styles.observaciones}>
@@ -223,7 +231,7 @@ export function PedidoResumenScreen({
               Esta pantalla no confirma el envío a cocina
               ni al POS.
             </Text>
-          </ScrollView>
+          </ScrollView>}
 
           <View style={styles.pie}>
             <View style={styles.totalFila}>
@@ -238,7 +246,7 @@ export function PedidoResumenScreen({
 
             <Pressable
               style={styles.boton}
-              onPress={() =>
+              onPress={() => seccion === 'catalogo' ? setSeccion('resumen') :
                 Alert.alert(
                   'Confirmación pendiente',
                   'El envío de comandas al POS y cocina ' +
@@ -249,7 +257,7 @@ export function PedidoResumenScreen({
               accessibilityRole="button"
             >
               <Text style={styles.botonTexto}>
-                Confirmar pedido
+                {seccion === 'catalogo' ? 'Ver mi pedido' : 'Confirmar pedido'}
               </Text>
             </Pressable>
           </View>
@@ -260,6 +268,9 @@ export function PedidoResumenScreen({
 }
 
 const styles = StyleSheet.create({
+  pestanas: { flexDirection: 'row', paddingHorizontal: 12, gap: 8, marginBottom: 8 },
+  pestana: { flex: 1, paddingVertical: 12, paddingHorizontal: 6, borderRadius: 12, alignItems: 'center' },
+  pestanaActiva: { backgroundColor: '#FFE7D2' },
   contenedor: {
     flex: 1,
     backgroundColor: C.fondo,
