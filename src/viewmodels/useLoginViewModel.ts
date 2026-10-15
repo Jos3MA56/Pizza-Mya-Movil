@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useAuth } from "../context/AuthContext";
+import { validarLogin } from "../utils/validarLogin";
 
 export function useLoginViewModel() {
   const { iniciarSesion } = useAuth();
@@ -9,43 +10,30 @@ export function useLoginViewModel() {
   const [error, setError] = useState("");
   const [cargando, setCargando] = useState(false);
 
-  const validarCorreo = (valor: string): boolean => {
-    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(valor);
-  };
-
   const login = async (): Promise<void> => {
     if (cargando) return;
 
     setError("");
 
-    if (!correo.trim() || !password.trim()) {
-      setError("Todos los campos son obligatorios.");
-      return;
-    }
+    const errorValidacion = validarLogin(correo, password);
 
-    if (!validarCorreo(correo.trim())) {
-      setError("Introduce un correo electrónico válido.");
+    if (errorValidacion) {
+      setError(errorValidacion);
       return;
     }
 
     setCargando(true);
 
     try {
-      console.log("[LOGIN] Botón presionado. Intentando autenticar...");
-
       const resultado = await iniciarSesion(
         correo.trim().toLowerCase(),
         password,
       );
 
-      console.log("[LOGIN] Resultado:", resultado);
-
       if (!resultado) {
         setError("No se pudo iniciar sesión.");
       }
     } catch (err) {
-      console.error("[LOGIN] Error:", err);
-
       setError(
         err instanceof Error ? err.message : "No se pudo iniciar sesión.",
       );
