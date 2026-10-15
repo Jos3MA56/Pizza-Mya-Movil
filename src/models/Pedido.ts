@@ -12,13 +12,18 @@ export type EstadoProducto =
   | "entregado"
   | "cancelado";
 
-export type CategoriaProducto = "pizza" | "complemento" | "bebida";
+// Nombre de categoría del backend; no limitar a las tres categorías del prototipo.
+export type CategoriaProducto = string;
 
 export interface ProductoComanda {
   id: string;
   productoId: string;
   nombre: string;
   categoria: CategoriaProducto;
+  categoriaId?: string;
+  productoTamanioId?: string;
+  tamanioId?: string;
+  tamanio?: string;
   cantidad: number;
   precioUnitario: number;
   subtotal: number;

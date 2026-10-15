@@ -1,5 +1,5 @@
 
-import React, { useEffect } from 'react';
+import React, { useEffect, useCallback } from 'react';
 import {
   View,
   TextInput,
@@ -14,7 +14,7 @@ import {
 } from 'react-native';
 
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
 
 import type {
   NativeStackNavigationProp,
@@ -54,9 +54,14 @@ export function MeseroHomeScreen() {
 
   const {
     comandas,
+    actualizarComandas,
     cargando,
     error,
   } = useComandasViewModel();
+
+  useFocusEffect(useCallback(() => {
+    void actualizarComandas();
+  }, [actualizarComandas]));
 
   const nombre = usuario?.nombre?.trim()?.split(' ')[0] || 'Mesero';
 
@@ -433,7 +438,7 @@ export function MeseroHomeScreen() {
 
         <Pressable
           style={styles.navItem}
-          onPress={() => abrirProximamente('Menú')}
+          onPress={() => navigation.navigate('Catalogo')}
         >
           <Text style={styles.navIcon}>☰</Text>
           <Text style={styles.navLabel}>Menú</Text>
