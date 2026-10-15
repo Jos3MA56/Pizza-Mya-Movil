@@ -1,5 +1,5 @@
-import { InMemoryPedidoRepository } from '../repositories/InMemoryPedidoRepository';
-import type { PedidoRepository } from '../repositories/PedidoRepository';
+import { InMemoryPedidoRepository } from "../repositories/InMemoryPedidoRepository";
+import type { PedidoRepository } from "../repositories/PedidoRepository";
 
 /**
  * Patrón Singleton: comparte un único repositorio de demostración entre vistas.
@@ -10,9 +10,7 @@ export class PedidoRepositorySingleton {
   private readonly repositorio: PedidoRepository;
 
   private constructor() {
-    this.repositorio = new InMemoryPedidoRepository([
-      { id: 'DEMO-001', estado: 'borrador', total: 0 },
-    ]);
+    this.repositorio = new InMemoryPedidoRepository();
   }
 
   static obtenerInstancia(): PedidoRepositorySingleton {
