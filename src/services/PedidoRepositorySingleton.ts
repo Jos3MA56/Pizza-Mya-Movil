@@ -1,16 +1,16 @@
-import { InMemoryPedidoRepository } from "../repositories/InMemoryPedidoRepository";
+import { SQLitePedidoRepository } from "../repositories/SQLitePedidoRepository";
 import type { PedidoRepository } from "../repositories/PedidoRepository";
 
 /**
- * Patrón Singleton: comparte un único repositorio de demostración entre vistas.
- * No representa un cliente HTTP ni una base de datos persistente.
+ * Patrón Singleton: comparte un único repositorio SQLite entre vistas.
+ * Persiste las comandas en la conexión compartida.
  */
 export class PedidoRepositorySingleton {
   private static instancia: PedidoRepositorySingleton | null = null;
   private readonly repositorio: PedidoRepository;
 
   private constructor() {
-    this.repositorio = new InMemoryPedidoRepository();
+    this.repositorio = new SQLitePedidoRepository();
   }
 
   static obtenerInstancia(): PedidoRepositorySingleton {

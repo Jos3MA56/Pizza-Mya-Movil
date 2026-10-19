@@ -1,12 +1,13 @@
 
-import * as SQLite from 'expo-sqlite';
+import type * as SQLite from 'expo-sqlite';
 
 const DATABASE_NAME = 'pizza_mya.db';
-const DATABASE_VERSION = 1;
+const DATABASE_VERSION = 2;
 
 let databasePromise: Promise<SQLite.SQLiteDatabase> | null = null;
 
 async function abrirBaseDatos(): Promise<SQLite.SQLiteDatabase> {
+  const SQLite = await import('expo-sqlite');
   const db = await SQLite.openDatabaseAsync(DATABASE_NAME);
 
   await db.execAsync(`
@@ -75,6 +76,25 @@ async function abrirBaseDatos(): Promise<SQLite.SQLiteDatabase> {
     });
   }
 
+  if (versionActual < 2) {
+    await db.withExclusiveTransactionAsync(async (tx) => {
+      await tx.execAsync(`
+        ALTER TABLE comandas_locales ADD COLUMN folio_confirmado TEXT;
+        ALTER TABLE comandas_locales ADD COLUMN total_confirmado_centavos INTEGER;
+        CREATE TABLE pedidos_mvvm (
+          id TEXT PRIMARY KEY NOT NULL, mesa INTEGER NOT NULL,
+          usuario TEXT NOT NULL, estado TEXT NOT NULL, documento TEXT NOT NULL
+        );
+        CREATE UNIQUE INDEX pedido_mesa_abierta ON pedidos_mvvm(mesa) WHERE estado != 'cancelado';
+        CREATE TABLE catalogo_cache (id INTEGER PRIMARY KEY CHECK(id = 1), documento TEXT NOT NULL, fecha TEXT NOT NULL);
+        CREATE TABLE cocina_demo (id TEXT PRIMARY KEY NOT NULL, documento TEXT NOT NULL, estado TEXT NOT NULL CHECK(estado IN ('pendiente','en_preparacion','listo')));
+        CREATE TABLE preparaciones_mvvm (pedido_id TEXT PRIMARY KEY NOT NULL REFERENCES pedidos_mvvm(id), request_id TEXT UNIQUE NOT NULL, documento TEXT NOT NULL, motivo TEXT NOT NULL);
+        CREATE TABLE demo_envios (id TEXT PRIMARY KEY NOT NULL, origen TEXT UNIQUE NOT NULL, usuario TEXT NOT NULL, documento TEXT NOT NULL, estado TEXT NOT NULL, intentos INTEGER NOT NULL DEFAULT 0, siguiente INTEGER NOT NULL DEFAULT 0, remoto TEXT);
+        CREATE TABLE demo_recibos (id TEXT PRIMARY KEY NOT NULL, documento TEXT NOT NULL);
+        PRAGMA user_version = 2;
+      `);
+    });
+  }
   return db;
 }
 
@@ -87,4 +107,19 @@ export function obtenerBaseDatos(): Promise<SQLite.SQLiteDatabase> {
   }
 
   return databasePromise;
+}
+
+// Expo abre conexiones exclusivas para escribir. Serializar las transacciones de
+// la app evita SQLITE_BUSY al pulsar dos veces o competir con el procesador LAN.
+let escrituraAnterior: Promise<void> = Promise.resolve();
+export async function transaccionLocal(
+  db: SQLite.SQLiteDatabase,
+  trabajo: Parameters<SQLite.SQLiteDatabase['withExclusiveTransactionAsync']>[0],
+): Promise<void> {
+  const anterior = escrituraAnterior;
+  let liberar!: () => void;
+  escrituraAnterior = new Promise<void>(resolve => { liberar = resolve; });
+  await anterior;
+  try { await db.withExclusiveTransactionAsync(trabajo); }
+  finally { liberar(); }
 }
