@@ -15,7 +15,8 @@ jest.mock('../../../viewmodels/usePedidoResumenViewModel', () => ({ usePedidoRes
 describe('Catálogo dentro de comanda', () => {
   test('abre en catálogo, permite ver resumen y separa agregar de editar', async () => {
     const editar = jest.fn();
-    const vista = await render(<PedidoResumenScreen pedidoId="pedido" onRegresar={() => undefined} onEditarComanda={editar} />);
+    const seguimiento = jest.fn();
+    const vista = await render(<PedidoResumenScreen pedidoId="pedido" onRegresar={() => undefined} onEditarComanda={editar} onSeguimiento={seguimiento} />);
     expect(vista.getByText('Catálogo integrado en comanda')).toBeTruthy();
     await fireEvent.press(vista.getByText('Ver mi pedido'));
     expect(vista.getByText('Comanda sin productos')).toBeTruthy();
@@ -25,5 +26,7 @@ describe('Catálogo dentro de comanda', () => {
     await fireEvent.press(vista.getByText('Ver mi pedido'));
     await fireEvent.press(vista.getByText('✎ Editar comanda'));
     expect(editar).toHaveBeenCalledTimes(1);
+    await fireEvent.press(vista.getByText('Preparar / seguimiento'));
+    expect(seguimiento).toHaveBeenCalledTimes(1);
   }, 15000);
 });

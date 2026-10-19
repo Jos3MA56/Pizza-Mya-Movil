@@ -29,6 +29,7 @@
     "android": "expo start --android",
     "ios": "expo start --ios",
     "web": "expo start --web",
+    "test:offline": "node scripts/test-offline-sqlite.cjs",
     "test:patterns": "node scripts/test-patrones.cjs",
     "test:api": "node scripts/test-api.cjs",
     "test:unit": "jest --runInBand"
