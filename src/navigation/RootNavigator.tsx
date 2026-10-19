@@ -1,3 +1,5 @@
+import { SeguimientoScreen } from '../views/screens/SeguimientoScreen';
+import { establecerActorLocal } from '../services/SesionLocal';
 
 import React from 'react';
 
@@ -22,6 +24,7 @@ import { PedidoResumenScreen } from '../views/screens/PedidoResumenScreen';
 
 export type RootStackParamList = {
   Login: undefined;
+  Seguimiento: { pedidoId: string };
   MeseroHome: undefined;
   CocinaHome: undefined;
   AccesoNoAutorizado: undefined;
@@ -96,6 +99,7 @@ function PedidoResumenRoute({
   return (
     <PedidoResumenScreen
       pedidoId={route.params.pedidoId}
+      onSeguimiento={() => navigation.navigate('Seguimiento', { pedidoId: route.params.pedidoId })}
       onRegresar={() => navigation.goBack()}
       onEditarComanda={() => {
           navigation.navigate('EditarComanda', {
@@ -133,8 +137,13 @@ function CatalogoRoute({ navigation, route }: CatalogoRouteProps) {
     onCrearPedido={() => navigation.navigate('TipoPedido')} />;
 }
 
+function SeguimientoRoute({ navigation, route }: NativeStackScreenProps<RootStackParamList, 'Seguimiento'>) {
+  return <SeguimientoScreen pedidoId={route.params.pedidoId} onRegresar={() => navigation.goBack()} />;
+}
+
 export function RootNavigator() {
   const { usuario } = useAuth();
+  establecerActorLocal(usuario);
 
   return (
     <NavigationContainer>
@@ -152,6 +161,7 @@ export function RootNavigator() {
               name="MeseroHome"
               component={MeseroHomeScreen}
             />
+            <Stack.Screen name="Seguimiento" component={SeguimientoRoute} />
             <Stack.Screen
               name="Catalogo"
               component={CatalogoRoute}

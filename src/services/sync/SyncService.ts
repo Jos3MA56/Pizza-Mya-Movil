@@ -1,3 +1,4 @@
+import { exigirActorLocal } from '../SesionLocal';
 import {
   obtenerOperacionPorId,
   marcarOperacionEnviando,
@@ -27,6 +28,7 @@ export interface ResumenSincronizacion {
 }
 
 export class SyncService {
+    constructor(private readonly transporte = { enviar: enviarPedidoPOS, consultar: consultarPedidoPOS }) {}
     private enEjecucion = false;
     private temporizadorPrueba: ReturnType<typeof setTimeout> | null = null;
     private pruebaActiva = false;
@@ -187,6 +189,8 @@ export class SyncService {
             );
         }
 
+        if (operacion.mesero_id !== exigirActorLocal('mesero').id) throw new Error('Operación de otro mesero.');
+        if (operacion.intentos >= 6) throw new Error('Límite de intentos alcanzado.');
         let payload: PayloadPedidoPOS;
 
         if (operacion.tipo === 'COMANDA_CREAR') {
@@ -220,7 +224,7 @@ export class SyncService {
             console.log('[SYNC POS] Estado: ENVIANDO');
             let resultado: ResultadoEnvioPOS;
             try {
-                resultado = await enviarPedidoPOS({
+                resultado = await this.transporte.enviar({
                     urlBase,
                     token,
                     payload,
@@ -236,7 +240,8 @@ export class SyncService {
                     (error.status === 408 ||
                         error.status === 429 ||
                         error.status >= 500)) {
-                    await registrarErrorReintentable(operacionId, 'SERVIDOR_TEMPORAL');
+                    if (error.status === 429) await registrarErrorReintentable(operacionId, 'SERVIDOR_TEMPORAL');
+                    else await registrarEstadoNoConfirmadoPOS(operacionId, 'RESULTADO_DESCONOCIDO', 'SERVIDOR_SIN_CONFIRMACION');
                 }
                 else if (error instanceof ErrorHTTPPOS &&
                     error.status >= 400 &&
@@ -245,7 +250,7 @@ export class SyncService {
                 }
                 else if (error instanceof Error &&
                     error.message === 'POS_TIMEOUT') {
-                    await registrarErrorReintentable(operacionId, 'TIMEOUT');
+                    await registrarEstadoNoConfirmadoPOS(operacionId, 'RESULTADO_DESCONOCIDO', 'TIMEOUT');
                 }
                  else if (
                 error instanceof Error &&
@@ -260,13 +265,10 @@ export class SyncService {
                     '[SYNC POS] Fallo de conexión detectado.'
                 );
 
-                await registrarErrorReintentable(
-                    operacionId,
-                    'SIN_RED'
-                );
+                await registrarEstadoNoConfirmadoPOS(operacionId, 'RESULTADO_DESCONOCIDO', 'CONEXION_INTERRUMPIDA');
 
                 console.log(
-                    '[SYNC POS] Reintento programado.'
+                    '[SYNC POS] Requiere conciliación antes de reenviar.'
                 );
                 }
                 else {
@@ -277,7 +279,7 @@ export class SyncService {
                 throw error;
             }
             // Solo confirmar tras una respuesta válida del POS.
-            await confirmarOperacionPOS(operacionId, resultado.pedido.id);
+            await confirmarOperacionPOS(operacionId, resultado.pedido.id, resultado.pedido);
             console.log('[SYNC POS] Estado: CONFIRMADA');
             console.log('[SYNC POS] Folio:', resultado.pedido.folio);
             console.log('[SYNC POS] Duplicado:', resultado.duplicado);
@@ -342,6 +344,7 @@ export class SyncService {
             );
         }
 
+        if (operacion.mesero_id !== exigirActorLocal('mesero').id) throw new Error('Operación de otro mesero.');
         const payload: unknown = JSON.parse(
             operacion.payload_json
         );
@@ -390,7 +393,7 @@ export class SyncService {
             throw new Error('Productos locales inválidos.');
         }
 
-        const pedido = await consultarPedidoPOS({
+        const pedido = await this.transporte.consultar({
             urlBase,
             token,
             requestId: operacion.id_operacion,
@@ -439,7 +442,7 @@ export class SyncService {
 
         await confirmarOperacionConciliadaPOS(
             operacionId,
-            pedido.id
+            pedido.id, pedido
         );
 
         console.log('[CONCILIACION] Estado: CONFIRMADA');

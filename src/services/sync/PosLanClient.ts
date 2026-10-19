@@ -153,7 +153,8 @@ export async function enviarPedidoPOS(
       confirmado.requestId !== payload.requestId ||
       typeof confirmado.folio !== 'string' ||
       typeof confirmado.totalCentavos !== 'number' ||
-      !Number.isInteger(confirmado.totalCentavos)
+      !Number.isSafeInteger(confirmado.totalCentavos) ||
+      Number(confirmado.totalCentavos) < 0
     ) {
       throw new Error(
         'La confirmación no corresponde a la operación enviada.'
