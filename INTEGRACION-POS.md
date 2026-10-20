@@ -106,3 +106,13 @@ Conexion POS esta disponible dentro del perfil de cocina y guarda el token en Se
 Verificacion de las dos hojas: 4 pruebas HTTP/SQLite POS aprobadas (incluye pedido mixto, estados/versiones independientes, concurrencia, rollback y migracion 2->3); TypeScript movil aprobado; 67 pruebas unitarias en 13 suites aprobadas, incluidas seleccion de hoja, notas y accion de la estacion correcta. La primera prueba de render tuvo un timeout de arranque; la repeticion y la suite completa pasaron. La prueba fisica con la cuenta COCINA nueva queda para el telefono.
 
 Bundle Android de las dos pantallas generado correctamente con Expo export (987 modulos).
+
+## Vinculacion por QR desde Perfil
+
+En Electron, Vincular celular genera un QR local de un solo uso y dos minutos, con URL y codigo temporal; no contiene el token permanente. Solo loopback puede generarlo. El telefono canjea el codigo por HTTP LAN y guarda el token en SecureStore. Hay limite de intentos; regenerar el QR invalida el anterior. Elegir la interfaz Wi-Fi correcta en el selector de Electron. No publicar capturas del QR.
+
+Mesero y cocina tienen Perfil -> Escanear QR del POS. El telefono solicita permiso de camara, conserva la vinculacion al cambiar de sesion y permite Desvincular o escanear de nuevo. La configuracion manual permanece unicamente como alternativa en Perfil. Inicio muestra solo un indicador pequeno. La conexion guardada se comprueba al abrir la pantalla y cada 15 segundos; una caida no borra token ni pedidos. No hay descubrimiento mDNS: si cambia la IP del POS, generar y escanear otro QR. No se obliga a repetir el escaneo diariamente si la vinculacion sigue vigente.
+
+Para activar: reiniciar servidor POS; cerrar y abrir Electron (build ya generado); reiniciar Expo desde mobile-integration con npm.cmd start -- --lan --clear por la nueva dependencia expo-camera. Iniciar sesion, abrir Perfil, pulsar Escanear QR del POS y apuntar al QR de Vincular celular en Electron. El QR de Expo sirve para abrir la app y es diferente del QR de vinculacion del POS.
+
+Verificado: 5 pruebas HTTP/SQLite POS (incluyendo canje, expiracion y uso unico), 69 pruebas unitarias moviles en 14 suites, 13 pruebas SQLite, recorrido HTTP completo a cocina y TypeScript. Electron smoke verifica que el dialogo QR renderice su imagen con un servidor/token de pruebas; no se uso el token real en esa prueba. Falta comprobar el escaneo con la camara fisica del telefono.

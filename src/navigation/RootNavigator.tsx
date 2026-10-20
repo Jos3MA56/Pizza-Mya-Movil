@@ -1,3 +1,4 @@
+import {PerfilScreen} from '../views/screens/PerfilScreen';
 import { SeguimientoScreen } from '../views/screens/SeguimientoScreen';
 import { establecerActorLocal } from '../services/SesionLocal';
 
@@ -24,6 +25,7 @@ import { PedidoResumenScreen } from '../views/screens/PedidoResumenScreen';
 
 export type RootStackParamList = {
   Login: undefined;
+  Perfil: undefined;
   Seguimiento: { pedidoId: string };
   MeseroHome: undefined;
   CocinaHome: undefined;
@@ -141,6 +143,8 @@ function SeguimientoRoute({ navigation, route }: NativeStackScreenProps<RootStac
   return <SeguimientoScreen pedidoId={route.params.pedidoId} onRegresar={() => navigation.goBack()} />;
 }
 
+function PerfilRoute({navigation}:NativeStackScreenProps<RootStackParamList,'Perfil'>){return <PerfilScreen onVolver={()=>navigation.goBack()}/>;}
+
 export function RootNavigator() {
   const { usuario } = useAuth();
   establecerActorLocal(usuario);
@@ -161,6 +165,7 @@ export function RootNavigator() {
               name="MeseroHome"
               component={MeseroHomeScreen}
             />
+            <Stack.Screen name="Perfil" component={PerfilRoute}/>
             <Stack.Screen name="Seguimiento" component={SeguimientoRoute} />
             <Stack.Screen
               name="Catalogo"
@@ -184,10 +189,10 @@ export function RootNavigator() {
             />
           </>
         ) : usuario.rol === 'cocina' ? (
-          <Stack.Screen
-            name="CocinaHome"
-            component={CocinaHomeScreen}
-          />
+          <>
+          <Stack.Screen name="CocinaHome" component={CocinaHomeScreen}/>
+          <Stack.Screen name="Perfil" component={PerfilRoute}/>
+          </>
         ) : (
           <Stack.Screen
             name="AccesoNoAutorizado"

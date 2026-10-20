@@ -3,6 +3,7 @@ import {test,expect,jest,beforeEach} from '@jest/globals';
 import {render,fireEvent,waitFor} from '@testing-library/react-native';
 import {CocinaHomeScreen} from '../CocinaHomeScreen';
 import {obtenerCocinaPOS,avanzarCocinaPOS,ticketsPorEstacion,type TicketPOS} from '../../../services/CocinaPOSService';
+jest.mock('@react-navigation/native',()=>({useNavigation:()=>({navigate:jest.fn()})}));
 jest.mock('react-native-safe-area-context',()=>({SafeAreaView:require('react-native').View}));
 jest.mock('../../../context/AuthContext',()=>({useAuth:()=>({usuario:{id:'cocina-test',nombre:'Cocina',rol:'cocina'},cerrarSesion:jest.fn()})}));
 jest.mock('../../../viewmodels/usePosLanConfigViewModel',()=>({usePosLanConfigViewModel:()=>({urlBase:'http://pos.test:3101',token:'',mensaje:'Configura el POS',procesando:false,setUrlBase:jest.fn(),setToken:jest.fn(),guardarYVerificar:jest.fn()})}));
@@ -22,5 +23,5 @@ test('permite cambiar de pizzas a complementos y avanzar solo la estacion selecc
  expect(v.getByText('Papas especiales')).toBeTruthy();expect(v.queryByText('Pizza tres quesos')).toBeNull();expect(v.getByText('Nota: Sin sal')).toBeTruthy();
  await fireEvent.press(v.getByRole('button',{name:'Iniciar preparación'}));
  await waitFor(()=>expect(avanzarCocinaPOS).toHaveBeenCalledWith(expect.objectContaining({id:'pedido-test'}),'complementos'));
- await fireEvent.press(v.getByRole('button',{name:'Conexión POS'}));expect(v.getByLabelText('Token LAN')).toBeTruthy();
+ expect(v.getByRole('button',{name:'Perfil'})).toBeTruthy();
 },15000);
