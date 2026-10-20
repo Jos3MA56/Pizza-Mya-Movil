@@ -11,7 +11,7 @@ El 19/10/2026 se verifico que esa base NO esta integrada en `origin/develop` (`0
 ## Preparacion de la prueba fisica
 
 1. Conectar PC y telefono al mismo Wi-Fi. La IPv4 Wi-Fi observada en esta PC es `192.168.1.78`; comprobarla de nuevo con `ipconfig`. No usar la IP del adaptador virtual `192.168.56.1`. No usar localhost desde el telefono. La red debe permitir comunicacion entre clientes.
-2. En una terminal dentro de `mobile-integration`, ejecutar `npm.cmd start -- --lan`. Usar el QR de ESTA copia, no el de la carpeta movil original. En otro equipo instalar dependencias con `npm.cmd ci`; en esta copia se reutiliza node_modules del original mediante una junction local.
+2. En una terminal dentro de `mobile-integration`, ejecutar `npm.cmd start -- --lan`. Usar el QR de ESTA copia, no el de la carpeta movil original. En otro equipo instalar dependencias con `npm.cmd ci`; esta copia tiene su propio node_modules instalado con npm.cmd ci. No enlazarlo al movil original: Metro puede generar rutas incorrectas para expo-sqlite.
 3. Iniciar sesion con una cuenta real de mesero. Perfil muestra el ID que se debe autorizar en el POS. El correo por si solo no equivale a un ID: no se adivinan identidades. Las contrasenas nunca se pasan por chat ni por comandos del POS.
 4. En la carpeta POS, ejecutar:
 
