@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, useRef } from "react";
 import type { Pedido } from "../models/Pedido";
 import type { PedidoRepository } from "../repositories/PedidoRepository";
 import { PedidoRepositorySingleton } from "../services/PedidoRepositorySingleton";
@@ -11,6 +11,8 @@ export function useEditarComandaViewModel(
   usuarioId: string,
   repositorio: PedidoRepository = repositorioPorDefecto,
 ) {
+  const revisionCargada=useRef<number|undefined>(undefined);
+  const [cambioRemoto,setCambioRemoto]=useState(false);
   const [pedido, setPedido] = useState<Pedido | null>(null);
   const [cantidades, setCantidades] = useState<Record<string, number>>({});
   const [observaciones, setObservaciones] = useState("");
@@ -29,6 +31,8 @@ export function useEditarComandaViewModel(
         throw new Error("No se encontró la comanda.");
       }
 
+      revisionCargada.current=actual.revision;
+      setCambioRemoto(false);
       setPedido(actual);
       setObservaciones(actual.observaciones ?? "");
 
@@ -50,11 +54,18 @@ export function useEditarComandaViewModel(
     void cargar();
   }, [cargar]);
 
+  useEffect(()=>{
+    if(!pedido?.compartida)return;
+    let activo=true,leyendo=false;
+    const timer=setInterval(()=>{if(leyendo)return;leyendo=true;void repositorio.obtenerPorId(pedidoId).then(actual=>{if(activo&&actual&&!actual.sinConexion&&actual.revision!==revisionCargada.current)setCambioRemoto(true);}).catch(()=>undefined).finally(()=>{leyendo=false;});},2000);
+    return()=>{activo=false;clearInterval(timer);};
+  },[pedido?.compartida,pedidoId,repositorio]);
+
   const cambiarCantidad = (productoId: string, cambio: number) => {
     if (pedido?.estado !== "borrador") return;
 
     const producto = pedido.productos?.find((p) => p.id === productoId);
-    if (!producto || producto.estado !== "pendiente") return;
+    if (!producto || producto.publicada || producto.estado !== "pendiente") return;
 
     setCantidades((anterior) => ({
       ...anterior,
@@ -82,6 +93,8 @@ export function useEditarComandaViewModel(
         throw new Error("Esta comanda ya no permite edición local.");
       }
 
+      if(actual.compartida && actual.revision!==pedido.revision)throw new Error('Otro mesero actualizo la comanda. Tus valores no se han enviado. Pulsa Volver a cargar para revisar la version actual.');
+      if(actual.sinConexion)throw new Error('Sin conexion con el POS. Conserva esta pantalla y vuelve a intentarlo al conectar.');
       const cambios: string[] = [];
 
       const productos = (actual.productos ?? []).map((producto) => {
@@ -91,7 +104,7 @@ export function useEditarComandaViewModel(
           return { ...producto };
         }
 
-        if (producto.estado !== "pendiente") {
+        if (producto.publicada || producto.estado !== "pendiente") {
           throw new Error(
             `El producto ${producto.nombre} ya no se puede modificar.`,
           );
@@ -168,9 +181,10 @@ export function useEditarComandaViewModel(
     observaciones,
     cargando,
     guardando,
-    error,
+    error:error||(cambioRemoto?'Otro mesero actualizo esta comanda. Tus valores se conservan; pulsa Volver a cargar antes de guardar.':null),
     cambiarCantidad,
     setObservaciones,
     guardarCambios,
+    recargar:cargar,
   };
 }

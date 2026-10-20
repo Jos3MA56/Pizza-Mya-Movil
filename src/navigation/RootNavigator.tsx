@@ -1,3 +1,6 @@
+import {SeguimientoCompartidoScreen} from '../views/screens/SeguimientoCompartidoScreen';
+import {cuentasCompartidas} from '../repositories/CompartidoPedidoRepository';
+import {PedidoRepositorySingleton} from '../services/PedidoRepositorySingleton';
 import {PerfilScreen} from '../views/screens/PerfilScreen';
 import { SeguimientoScreen } from '../views/screens/SeguimientoScreen';
 import { establecerActorLocal } from '../services/SesionLocal';
@@ -40,6 +43,8 @@ export type RootStackParamList = {
     pedidoId: string;
   };
 };
+
+PedidoRepositorySingleton.obtenerInstancia().usarRepositorio(cuentasCompartidas);
 
 const Stack =
   createNativeStackNavigator<RootStackParamList>();
@@ -140,6 +145,7 @@ function CatalogoRoute({ navigation, route }: CatalogoRouteProps) {
 }
 
 function SeguimientoRoute({ navigation, route }: NativeStackScreenProps<RootStackParamList, 'Seguimiento'>) {
+  if(route.params.pedidoId.startsWith('cuenta-'))return <SeguimientoCompartidoScreen pedidoId={route.params.pedidoId} onRegresar={()=>navigation.goBack()}/>;
   return <SeguimientoScreen pedidoId={route.params.pedidoId} onRegresar={() => navigation.goBack()} />;
 }
 

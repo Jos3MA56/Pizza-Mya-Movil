@@ -34,7 +34,8 @@
     "test:patterns": "node scripts/test-patrones.cjs",
     "test:api": "node scripts/test-api.cjs",
     "test:unit": "jest --runInBand",
-    "test:lan": "node scripts/test-pos-lan.cjs"
+    "test:lan": "node scripts/test-pos-lan.cjs",
+    "test:compartidas": "node scripts/test-cuentas-compartidas.cjs"
   },
   "private": true
 }

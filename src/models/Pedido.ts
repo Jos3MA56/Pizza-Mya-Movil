@@ -16,6 +16,8 @@ export type EstadoProducto =
 export type CategoriaProducto = string;
 
 export interface ProductoComanda {
+  publicada?: boolean;
+  pedidoPOS?: string;
   id: string;
   productoId: string;
   nombre: string;
@@ -44,6 +46,8 @@ export interface CambioComanda {
 }
 
 export interface Pedido {
+  compartida?: boolean;
+  sinConexion?: boolean;
   revision?: number;
   preparada?: boolean;
   id: string;

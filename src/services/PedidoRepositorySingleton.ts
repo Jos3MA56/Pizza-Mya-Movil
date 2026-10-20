@@ -7,7 +7,8 @@ import type { PedidoRepository } from "../repositories/PedidoRepository";
  */
 export class PedidoRepositorySingleton {
   private static instancia: PedidoRepositorySingleton | null = null;
-  private readonly repositorio: PedidoRepository;
+  private repositorio: PedidoRepository;
+  private readonly proxy:PedidoRepository={obtenerPorId:id=>this.repositorio.obtenerPorId(id),guardar:p=>this.repositorio.guardar(p),suscribir:(id,fn)=>this.repositorio.suscribir(id,fn),obtenerComandaPorMesa:m=>this.repositorio.obtenerComandaPorMesa(m),listarComandasActivas:()=>this.repositorio.listarComandasActivas(),crearComanda:(m,u)=>this.repositorio.crearComanda(m,u),agregarProducto:(id,p,u)=>this.repositorio.agregarProducto(id,p,u)};
 
   private constructor() {
     this.repositorio = new SQLitePedidoRepository();
@@ -20,7 +21,9 @@ export class PedidoRepositorySingleton {
     return PedidoRepositorySingleton.instancia;
   }
 
+  usarRepositorio(repo:PedidoRepository){this.repositorio=repo;}
+
   obtenerRepositorio(): PedidoRepository {
-    return this.repositorio;
+    return this.proxy;
   }
 }

@@ -1,0 +1,2 @@
+export const CUENTAS_CACHE_SQL=`CREATE TABLE IF NOT EXISTS cuentas_cache(id TEXT PRIMARY KEY,mesa INTEGER NOT NULL,documento TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS cuentas_cola(operacionId TEXT PRIMARY KEY,cuentaId TEXT NOT NULL,payload TEXT NOT NULL,estado TEXT NOT NULL,resultado TEXT,error TEXT,fecha TEXT NOT NULL);`;

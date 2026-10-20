@@ -313,7 +313,7 @@ export function MeseroHomeScreen() {
               </View>
 
               <Text style={styles.orderStatus}>
-                {pedido.estado === 'borrador'
+                {pedido.compartida?'Compartida':pedido.estado === 'borrador'
                   ? 'Borrador'
                   : pedido.estado === 'enviado'
                     ? 'Enviado*'

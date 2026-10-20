@@ -69,7 +69,7 @@ La preparacion y el payload inmutable quedan en una transaccion. El validador co
 
 Una preparacion BLOQUEADA de la iteracion anterior, o PENDIENTE con cero intentos, se puede cancelar desde Seguimiento. Se archiva el documento, se conserva la operacion CANCELADA con su requestId y se retira el bloqueo de edicion en la misma transaccion. Si hubo un intento, no se permite este desbloqueo. No se modifica contenido que pudo llegar al POS.
 
-Pendiente fuera del recorrido de hoy: edicion compartida de comandas entre varios meseros/dispositivos, cuentas abiertas centralizadas con control de versiones, pagos/cierre de cuenta y liberacion de mesa. La restriccion local por creador sigue existiendo y no debe presentarse como colaboracion entre meseros ya implementada. Tampoco hay sincronizacion de pedidos con nube ni desglose de Combos por sus componentes. La demostracion anterior queda separada en Seguimiento; no alimenta el tablero de cocina operativo.
+La edicion compartida de mesas nuevas esta implementada en el apartado Comandas compartidas entre celulares. Pendientes: pagos/cierre de cuenta y liberacion de mesa. La restriccion por creador se conserva solo para los borradores locales del flujo anterior; no se convierten automaticamente en cuentas compartidas. Tampoco hay sincronizacion de pedidos con nube ni desglose de Combos por sus componentes. La demostracion anterior queda separada en Seguimiento; no alimenta el tablero de cocina operativo.
 
 ## Verificacion
 
@@ -116,3 +116,30 @@ Mesero y cocina tienen Perfil -> Escanear QR del POS. El telefono solicita permi
 Para activar: reiniciar servidor POS; cerrar y abrir Electron (build ya generado); reiniciar Expo desde mobile-integration con npm.cmd start -- --lan --clear por la nueva dependencia expo-camera. Iniciar sesion, abrir Perfil, pulsar Escanear QR del POS y apuntar al QR de Vincular celular en Electron. El QR de Expo sirve para abrir la app y es diferente del QR de vinculacion del POS.
 
 Verificado: 5 pruebas HTTP/SQLite POS (incluyendo canje, expiracion y uso unico), 69 pruebas unitarias moviles en 14 suites, 13 pruebas SQLite, recorrido HTTP completo a cocina y TypeScript. Electron smoke verifica que el dialogo QR renderice su imagen con un servidor/token de pruebas; no se uso el token real en esa prueba. Falta comprobar el escaneo con la camara fisica del telefono.
+
+## Comandas compartidas entre celulares
+
+Las mesas nuevas abiertas con un POS vinculado usan una cuenta central en SQLite del POS. Ya no pertenecen exclusivamente al mesero creador. Seleccion de mesas, Inicio y Resumen consultan cada 2 segundos y muestran los cambios guardados por cualquier mesero autorizado. La pantalla Editar conserva el formulario mientras se escribe; avisa si otro mesero cambio la version y exige recargar explicitamente. No se sobrescribe el trabajo ajeno.
+
+Endpoints protegidos: GET /cuentas, GET /cuentas/:id, POST /cuentas/mesa/:mesa para abrir o recuperar la cuenta unica, POST /cuentas/:id/operaciones para agregar, guardar o publicar con version y operacionId estable, GET /cuentas/:id/operaciones/:operacionId para conciliar. Cada cambio tiene actor e historial. La restriccion unica de mesa abierta y la transaccion impiden cuentas duplicadas. Una version anterior recibe 409. Mismo operacionId y contenido devuelve el resultado guardado; otro contenido recibe 409.
+
+Agregar y guardar comparte el borrador entre meseros. En Seguimiento, Enviar lineas nuevas a cocina publica solamente los productos no enviados. Pedido, recibo, cocina, version compartida y registro de operacion se confirman en una transaccion. Las lineas publicadas quedan protegidas: no se cambia el contenido de un requestId ya recibido. Se pueden agregar mas lineas a la misma cuenta y emitir otro ticket solo con ese incremento. Cambiar observaciones generales afecta a los proximos envios; no altera los tickets previos.
+
+SQLite movil v4 guarda una cache de cuentas y un diario durable de operaciones. Si se pierde una respuesta se consulta el ID antes de otra edicion. Un 404 no autoriza reenvio automatico: Seguimiento ofrece una accion manual para consultar/reintentar exactamente la misma operacion, protegida por idempotencia y version. Al quedar sin conexion se puede consultar la copia; la edicion compartida requiere POS disponible. No se simula que los otros dispositivos conocen cambios desconectados. Los borradores locales del flujo anterior no se convierten ni mezclan automaticamente; los tickets anteriores de Electron/cocina y el historial SQLite se conservan.
+
+La cuenta sigue abierta despues de publicar y no se libera la mesa. Cierre/pago y correcciones de productos ya enviados requieren un flujo posterior; no se implementa un cierre falso. Electron muestra las cuentas compartidas en captura y conserva el listado de tickets de cocina recibidos.
+
+Prueba con dos telefonos:
+1. Reiniciar el servidor POS y Electron y recargar la app desde mobile-integration.
+2. Autorizar ambos IDs reales de mesero. El script admite -MeseroId "ID_MESERO_1,ID_MESERO_2" (no los correos). Tambien se puede iniciar posteriormente con el segundo ID para agregarlo; no se eliminan los anteriores.
+3. Generar un QR distinto para cada celular y vincularlos en Perfil, en el mismo Wi-Fi.
+4. Mesero 1 abre mesa 5 y agrega un producto. Mesero 2 abre Seleccion de mesas: debe ver mesa 5 ocupada en unos 2 segundos y abrir la misma comanda.
+5. Mesero 2 cambia una cantidad y guarda. Mesero 1 debe ver el cambio en Resumen. Si ambos editaron desde una version anterior, el segundo debe recibir aviso de conflicto y recargar, conservando su formulario hasta esa accion explicita.
+6. Enviar a cocina. Agregar otro producto desde el otro celular y enviar solo el incremento. Comprobar cantidades y ausencia de tickets repetidos en Electron/cocina.
+7. Cortar conexion de un telefono: ver copia guardada, sin afirmar cambios compartidos. Recuperar y comprobar la conciliacion del diario.
+
+Verificacion automatica: npm.cmd run test:compartidas ejecuta el repositorio TypeScript real con DOS archivos SQLite moviles aislados, un servidor HTTP y otra base POS temporal. Comprueba apertura unica de mesa, edicion cruzada, precios POS, conflicto de version, proteccion de lineas enviadas, envio incremental, rollback de publicacion, idempotencia, respuesta perdida, recuperacion, reinicio y cache offline. No se ha realizado todavia la prueba fisica con dos celulares.
+
+Resultados de esta iteracion: TypeScript aprobado; 5 pruebas POS aprobadas; prueba HTTP de dos SQLite moviles aprobada incluyendo rollback y reintento de publicacion; 13 pruebas SQLite anteriores aprobadas; 5 pruebas de patrones aprobadas. La prueba del formulario de edicion concurrente tambien paso. Actualizar la app en AMBOS telefonos: un cliente anterior no debe abrir una comanda paralela para una mesa con cuenta compartida.
+
+Cierre de verificacion de cuentas compartidas: 70 pruebas unitarias moviles aprobadas en 15 suites; TypeScript aprobado; build Vite/TypeScript POS aprobado; bundle Android generado (999 modulos); Electron smoke PASS; npm.cmd run test:compartidas PASS con dos SQLite moviles separados.

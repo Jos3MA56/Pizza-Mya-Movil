@@ -1,8 +1,9 @@
+import {CUENTAS_CACHE_SQL} from './cuentasSchema';
 
 import type * as SQLite from 'expo-sqlite';
 
 const DATABASE_NAME = 'pizza_mya.db';
-const DATABASE_VERSION = 3;
+const DATABASE_VERSION = 4;
 
 let databasePromise: Promise<SQLite.SQLiteDatabase> | null = null;
 
@@ -100,6 +101,7 @@ async function abrirBaseDatos(): Promise<SQLite.SQLiteDatabase> {
       await tx.execAsync(`CREATE TABLE preparaciones_archivo(request_id TEXT PRIMARY KEY,documento TEXT NOT NULL,cancelada_en TEXT NOT NULL); CREATE TABLE pos_mesas_cache(id INTEGER PRIMARY KEY CHECK(id=1),documento TEXT NOT NULL); PRAGMA user_version=3;`);
     });
   }
+  if(versionActual<4){await db.withExclusiveTransactionAsync(async tx=>{await tx.execAsync(CUENTAS_CACHE_SQL);await tx.execAsync('PRAGMA user_version=4;');});}
   return db;
 }
 

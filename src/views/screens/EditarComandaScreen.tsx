@@ -51,7 +51,7 @@ export function EditarComandaScreen({
     if (correcto) {
       Alert.alert(
         'Cambios guardados',
-        'La comanda se actualizó localmente. Los cambios todavía no se han enviado al POS.',
+        vm.pedido?.compartida?'Cambios guardados en el POS y disponibles para los demas meseros.':'La comanda se guardo localmente.',
         [{ text: 'Aceptar', onPress: onGuardado }]
       );
     }
@@ -64,7 +64,7 @@ export function EditarComandaScreen({
           <Text style={styles.regresar}>← Regresar</Text>
         </Pressable>
 
-        <Text style={styles.titulo}>Editar comanda</Text>
+        <Text style={styles.titulo}>Editar comanda</Text><Pressable onPress={()=>void vm.recargar()}><Text style={styles.regresar}>Volver a cargar la comanda</Text></Pressable>
 
         <Text style={styles.subtitulo}>
           {vm.pedido?.mesaId
@@ -101,7 +101,7 @@ export function EditarComandaScreen({
             ) : (
               (vm.pedido.productos ?? []).map((producto) => {
                 const permiteEditar =
-                  editable && producto.estado === 'pendiente';
+                  editable && !producto.publicada && producto.estado === 'pendiente';
 
                 const cantidad =
                   vm.cantidades[producto.id] ?? producto.cantidad;
@@ -150,7 +150,7 @@ export function EditarComandaScreen({
 
                     {!permiteEditar && (
                       <Text style={styles.bloqueado}>
-                        Modificación no disponible
+                        {producto.publicada?'Ya enviado a cocina - contenido protegido':'Modificacion no disponible'}
                       </Text>
                     )}
                   </View>
@@ -158,7 +158,7 @@ export function EditarComandaScreen({
               })
             )}
 
-            <Text style={styles.seccion}>Observaciones para cocina</Text>
+            <Text style={styles.seccion}>Observaciones para cocina</Text>{vm.pedido.compartida&&vm.pedido.productos?.some(p=>p.publicada)&&<Text style={styles.textoSecundario}>Las notas generales se enviaran con los productos nuevos. Los tickets anteriores no cambian.</Text>}
 
             <TextInput
               style={styles.entrada}

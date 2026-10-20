@@ -45,7 +45,7 @@ export function usePedidoResumenViewModel(
 
     const timer = setInterval(() => {
       void repositorio.obtenerPorId(id).then(p => { if (activo) setPedido(p); }).catch(() => undefined);
-    }, 3000);
+    }, 2000);
     return () => {
       clearInterval(timer);
       activo = false;

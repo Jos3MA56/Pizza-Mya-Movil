@@ -129,7 +129,7 @@ export function PedidoResumenScreen({
               <View style={styles.estado}>
                 <Text style={styles.estadoTexto}>
                   {pedido.estado === 'borrador'
-                    ? 'Borrador local'
+                    ? (pedido.compartida?'Compartida en POS':'Borrador local')
                     : pedido.estado === 'enviado'
                       ? 'Enviado (sin verificar)'
                       : 'Cancelado'}
@@ -229,8 +229,7 @@ export function PedidoResumenScreen({
             </View>
 
             <Text style={styles.aviso}>
-              {pedido.preparada ? 'Instantánea preparada: edición bloqueada. ' : ''}Comanda guardada en SQLite. Preparar bloquea la instantánea para edición.
-              Consulta Seguimiento para revisar compatibilidad y la demostración local.
+              {pedido.compartida?(pedido.sinConexion?'Sin conexion: copia guardada. Conecta con el POS para editar.':'Cuenta compartida: cambios visibles entre celulares. En Seguimiento envia solamente los productos nuevos. Las lineas ya enviadas a cocina estan protegidas.'):(pedido.preparada?'Instantanea preparada: edicion bloqueada. ':'')+'Comanda local guardada en SQLite. Consulta Seguimiento para enviarla.'}
             </Text>
           </ScrollView>}
 
