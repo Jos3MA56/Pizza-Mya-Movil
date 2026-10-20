@@ -33,7 +33,7 @@ El servidor es un proceso independiente de Electron, como en el proyecto origina
 6. En la configuracion LAN del perfil de mesero, guardar `http://192.168.1.78:3101` y el contenido de `data/lan-token.txt`, abriendolo localmente. El token se guarda en SecureStore; no ponerlo en EXPO_PUBLIC, capturas, logs ni commits. Comprobar conexion. Si Windows solicita permitir Node, limitarlo a la red privada de confianza; no se modifico automaticamente el firewall. Desde el navegador del telefono se puede comprobar `http://192.168.1.78:3101/api/local/health` sin token.
 7. Abrir mesa 3, agregar una pizza desde el catalogo del POS, seleccionar su tamano y agregar observaciones. Para probar dos tamanos, agregar dos lineas con sus presentaciones. Desde Seguimiento pulsar Preparar/enviar. Esperar CONFIRMADA y folio `MYA-...`; comprobar ambos totales si hay discrepancia.
 8. Verificar ese mismo folio en Electron: mesa, origen movil, cantidades, tamanos, notas y total.
-9. Cerrar sesion del mesero e iniciar sesion con una cuenta real de rol COCINA. Seleccionar la categoria Pizzas y el filtro pendiente. El tablero consulta el POS cada 3 segundos; no usa la tabla cocina_demo. Debe aparecer el mismo folio. Se puede iniciar preparacion y marcar el ticket completo listo. El estado es del ticket completo, no independiente por categoria; la interfaz lo indica.
+9. Cerrar sesion del mesero e iniciar sesion con una cuenta real de rol COCINA. Seleccionar la pestana Pizzas y el filtro Pendientes. El tablero consulta el POS cada 3 segundos; no usa la tabla cocina_demo. Debe aparecer el mismo folio. Se puede iniciar preparacion y marcar lista solo la parte de Pizzas o Complementos. Ambas estaciones tienen estados y versiones independientes.
 10. Cortar y recuperar la conexion. Seguimiento distingue resultado desconocido y conciliacion; un 404 conserva el estado, no autoriza otro envio. Repetir el mismo requestId debe conservar folio y un solo ticket. No cambiar requestId ni borrar filas para resolver un error.
 
 La configuracion LAN y los pedidos se conservan al cerrar sesion. Cambiar de cuenta requiere el login existente del backend con internet; el cache de sesion offline actual solo conserva la ultima sesion. No se promete cambiar a una cuenta nueva sin conexion.
@@ -69,7 +69,7 @@ La preparacion y el payload inmutable quedan en una transaccion. El validador co
 
 Una preparacion BLOQUEADA de la iteracion anterior, o PENDIENTE con cero intentos, se puede cancelar desde Seguimiento. Se archiva el documento, se conserva la operacion CANCELADA con su requestId y se retira el bloqueo de edicion en la misma transaccion. Si hubo un intento, no se permite este desbloqueo. No se modifica contenido que pudo llegar al POS.
 
-Pendiente fuera del recorrido de hoy: edicion compartida de comandas entre varios meseros/dispositivos, cuentas abiertas centralizadas con control de versiones, pagos/cierre de cuenta y liberacion de mesa. La restriccion local por creador sigue existiendo y no debe presentarse como colaboracion entre meseros ya implementada. Tampoco hay sincronizacion de pedidos con nube ni estados independientes por estacion de cocina. La demostracion anterior queda separada en Seguimiento; no alimenta el tablero de cocina operativo.
+Pendiente fuera del recorrido de hoy: edicion compartida de comandas entre varios meseros/dispositivos, cuentas abiertas centralizadas con control de versiones, pagos/cierre de cuenta y liberacion de mesa. La restriccion local por creador sigue existiendo y no debe presentarse como colaboracion entre meseros ya implementada. Tampoco hay sincronizacion de pedidos con nube ni desglose de Combos por sus componentes. La demostracion anterior queda separada en Seguimiento; no alimenta el tablero de cocina operativo.
 
 ## Verificacion
 
@@ -90,3 +90,19 @@ El harness sustituye exclusivamente las APIs nativas Expo SQLite/SecureStore/Cry
 ## Recuperar rechazo de un receptor anterior
 
 Si Seguimiento muestra RECHAZADA HTTP_422, iniciar el receptor nuevo en 3101 con el script de pruebas y el ID real del mesero; cambiar la configuracion LAN al puerto 3101 y su token. La app permite reintento manual de rechazos explicitos 401/403/422, valida contrato v2 y consulta primero el requestId. Si ya existe concilia; si no existe y hubo rechazo explicito, reenvia exactamente el mismo payload y requestId. Un resultado desconocido y un 404 sin rechazo previo siguen sin habilitar reenvio. El motivo del rechazo se muestra junto al codigo HTTP. No borrar operaciones.
+
+## Hojas de Pizzas y Complementos
+
+El perfil COCINA abre dos pantallas con pestanas. Se mantiene el fondo crema, rojo/naranja, logo y tipografia nativa usados en las demas pantallas. Cada hoja muestra folio, mesa, hora, identificador de mesero, cantidades, tamano y observaciones. La hoja Word de Complementos se uso como referencia de campos.
+
+El servidor conserva una asignacion persistente por ID de categoria. Al importar/migrar el catalogo, las categorias exactas Pizzas y Complementos se asignan a sus estaciones homonimas. Bebidas y Combos no se clasifican por suposicion; si hay lineas sin estacion la app lo indica. No se descompone un combo sin reglas del backend.
+
+GET /api/local/cocina incluye estacionesIndependientes y estaciones con estado/version por pedido; cada linea tiene estacion. PATCH /api/local/cocina/:id admite estacion, estado y version. Cambiar Complementos no cambia Pizzas. La actualizacion global de un ticket mixto por un cliente anterior se rechaza 409 para evitar marcar todo como listo. El estado global solo llega a listo cuando todas sus estaciones estan listas y no hay lineas sin asignar.
+
+La migracion SQLite POS 2->3 agrega estas estaciones sin borrar pedidos y conserva los estados existentes. Reiniciar el servidor en 3101 con el mismo script, ID de mesero y base; recargar Expo. No borrar la base ni volver a enviar pedidos confirmados. La app de cocina muestra un mensaje de reinicio si el servidor aun usa la version anterior.
+
+Conexion POS esta disponible dentro del perfil de cocina y guarda el token en SecureStore. Los botones se deshabilitan sin conexion o durante una actualizacion. Versiones desactualizadas reciben 409 y se vuelve a consultar el tablero.
+
+Verificacion de las dos hojas: 4 pruebas HTTP/SQLite POS aprobadas (incluye pedido mixto, estados/versiones independientes, concurrencia, rollback y migracion 2->3); TypeScript movil aprobado; 67 pruebas unitarias en 13 suites aprobadas, incluidas seleccion de hoja, notas y accion de la estacion correcta. La primera prueba de render tuvo un timeout de arranque; la repeticion y la suite completa pasaron. La prueba fisica con la cuenta COCINA nueva queda para el telefono.
+
+Bundle Android de las dos pantallas generado correctamente con Expo export (987 modulos).
