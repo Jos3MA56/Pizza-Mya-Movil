@@ -78,8 +78,20 @@ test('preparacion SQLite movil -> SyncService -> HTTP -> SQLite POS -> cambio de
   const v=producto.tamanios[0];
   pedido=await repo.agregarProducto(pedido.id,{id:'linea-real',productoId:v.productoId??producto.id,productoTamanioId:v.id,tamanioId:v.tamanioId,tamanio:v.nombre,nombre:producto.nombre,categoria:catalogo.categorias.find(c=>c.id===producto.categoriaId).nombre,categoriaId:producto.categoriaId,cantidad:2,precioUnitario:v.precio,subtotal:0,estado:'pendiente',observaciones:'Sin cortar'},'mesero-integracion');
   pedido.observaciones='Prueba de cambio de perfil';await repo.guardar(pedido);
-  const flujo=load('src/services/FlujoComandaService.ts');await flujo.prepararYEnviar(pedido.id);
-  let [op]=await flujo.listarSeguimiento();assert.equal(op.estado,'CONFIRMADA');assert.match(op.folio_confirmado,/^MYA-/);
+  const flujo=load('src/services/FlujoComandaService.ts');
+  db.prepare('DELETE FROM lan_meseros WHERE id=?').run('mesero-integracion');
+  await assert.rejects(flujo.prepararYEnviar(pedido.id),/Mesero no autorizado/);
+  const [rechazada]=await flujo.listarSeguimiento();assert.equal(rechazada.estado,'RECHAZADA');assert.match(rechazada.ultimo_error,/HTTP_403: Mesero no autorizado/);
+  const snapshot=sqlite.prepare('SELECT payload_json FROM operaciones_pendientes WHERE id_operacion=?').get(rechazada.id_operacion).payload_json;
+  // Una configuracion que apunta al receptor viejo no rehabilita el rechazo.
+  const viejo=require('node:http').createServer((_req,res)=>{res.setHeader('Content-Type','application/json');res.end(JSON.stringify({estado:'ok',version:1}));});
+  viejo.listen(0,'127.0.0.1');await once(viejo,'listening');
+  try{await guardarConfiguracionPOS({urlBase:`http://127.0.0.1:${viejo.address().port}`,token});await assert.rejects(flujo.reintentarSeguimiento(rechazada.id_operacion),/POS anterior/);assert.equal((await flujo.listarSeguimiento())[0].estado,'RECHAZADA');}
+  finally{await new Promise(r=>viejo.close(r));}
+  await guardarConfiguracionPOS({urlBase,token});db.prepare('INSERT INTO lan_meseros VALUES (?)').run('mesero-integracion');
+  await flujo.reintentarSeguimiento(rechazada.id_operacion);
+  let [op]=await flujo.listarSeguimiento();assert.equal(op.id_operacion,rechazada.id_operacion);assert.equal(op.intentos,2);assert.equal(sqlite.prepare('SELECT payload_json FROM operaciones_pendientes WHERE id_operacion=?').get(op.id_operacion).payload_json,snapshot);
+assert.equal(op.estado,'CONFIRMADA');assert.match(op.folio_confirmado,/^MYA-/);
   const local=sqlite.prepare('SELECT * FROM operaciones_pendientes WHERE id_operacion=?').get(op.id_operacion);const payload=JSON.parse(local.payload_json);
   assert.equal(payload.productos[0].productoTamanioId,v.id);assert.equal(op.total_confirmado_centavos,Math.round(v.precio*100)*2);
   const client=load('src/services/sync/PosLanClient.ts');await client.enviarPedidoPOS({urlBase,token,payload});

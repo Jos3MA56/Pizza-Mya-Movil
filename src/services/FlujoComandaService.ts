@@ -1,3 +1,4 @@
+import {solicitudPOS, consultarPedidoPOS} from './sync/PosLanClient';
 import {crearPayloadPOS} from './sync/CrearPayloadPOS';
 import * as Crypto from 'expo-crypto';
 import { obtenerBaseDatos, transaccionLocal } from './storage/database';
@@ -33,6 +34,22 @@ export async function reintentarSeguimiento(id: string) {
   if (!operacion) throw new Error('Operación no autorizada.');
   const config = await obtenerConfiguracionPOS();
   if (!config) throw new Error('Configura la conexión LAN en la pantalla de conexión.');
+  if (operacion.estado === 'RECHAZADA') {
+    if(operacion.intentos>=6)throw new Error('Limite de intentos alcanzado.');
+    // Solo un rechazo explicito sin escritura permite este reintento manual.
+    // Un timeout/404 de resultado desconocido sigue sin autorizar reenvio.
+    if(!/^HTTP_(401|403|422)(:|$)/.test(operacion.ultimo_error??''))throw new Error('Este rechazo necesita revision antes de reintentar.');
+    const salud=await solicitudPOS(config.urlBase,config.token,'/health');
+    if(!salud?.data?.contratos?.includes(2))throw new Error('Estas conectado al POS anterior. Inicia el receptor nuevo en el puerto 3101 y actualiza la conexion LAN.');
+    const existente=await consultarPedidoPOS({...config,requestId:id});
+    const db=await obtenerBaseDatos();
+    await transaccionLocal(db,async tx=>{
+      const cambio=await tx.runAsync("UPDATE operaciones_pendientes SET estado=?,proximo_intento_en=NULL WHERE id_operacion=? AND mesero_id=? AND estado='RECHAZADA'",existente?'RESULTADO_DESCONOCIDO':'PENDIENTE',id,exigirActorLocal('mesero').id);
+      if(cambio.changes!==1)throw new Error('La operacion cambio; actualiza Seguimiento.');
+    });
+    if(existente)return syncService.conciliarOperacionPOS(id,config.urlBase,config.token);
+    return syncService.enviarOperacionPOS(id,config.urlBase,config.token);
+  }
   if (operacion.estado === 'RESULTADO_DESCONOCIDO') return syncService.conciliarOperacionPOS(id, config.urlBase, config.token);
   if (operacion.intentos >= 6) throw new Error('Límite de intentos alcanzado.');
   if (operacion.estado !== 'PENDIENTE' && operacion.estado !== 'ERROR_REINTENTABLE') throw new Error('Operación bloqueada o finalizada.');

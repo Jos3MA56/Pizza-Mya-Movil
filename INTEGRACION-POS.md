@@ -86,3 +86,7 @@ Pendiente fuera del recorrido de hoy: edicion compartida de comandas entre vario
 - Variante con catalogo publico real (solo lecturas de nube): `$env:LAN_TEST_LIVE_CATALOG='1'; npm.cmd run test:lan`. Verificados 56 IDs de presentacion, sin pedidos en la nube. Despues quitar esa variable.
 
 El harness sustituye exclusivamente las APIs nativas Expo SQLite/SecureStore/Crypto por puentes de prueba (SQLite real de Node y almacenamiento de secretos en memoria). La autenticacion de cuentas en telefono, el enlace Wi-Fi fisico y el uso tactil de pantallas requieren la prueba manual anterior. No se realizaron ni se afirman esas pruebas fisicas.
+
+## Recuperar rechazo de un receptor anterior
+
+Si Seguimiento muestra RECHAZADA HTTP_422, iniciar el receptor nuevo en 3101 con el script de pruebas y el ID real del mesero; cambiar la configuracion LAN al puerto 3101 y su token. La app permite reintento manual de rechazos explicitos 401/403/422, valida contrato v2 y consulta primero el requestId. Si ya existe concilia; si no existe y hubo rechazo explicito, reenvia exactamente el mismo payload y requestId. Un resultado desconocido y un 404 sin rechazo previo siguen sin habilitar reenvio. El motivo del rechazo se muestra junto al codigo HTTP. No borrar operaciones.

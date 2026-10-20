@@ -247,7 +247,7 @@ export class SyncService {
                 else if (error instanceof ErrorHTTPPOS &&
                     error.status >= 400 &&
                     error.status < 500) {
-                    await registrarEstadoNoConfirmadoPOS(operacionId, 'RECHAZADA', `HTTP_${error.status}`);
+                    await registrarEstadoNoConfirmadoPOS(operacionId, 'RECHAZADA', `HTTP_${error.status}: ${error.message.slice(0, 300)}`);
                 }
                 else if (error instanceof Error &&
                     error.message === 'POS_TIMEOUT') {
