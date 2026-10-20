@@ -1,5 +1,8 @@
+import {obtenerBaseDatos} from '../../services/storage/database';
+import {obtenerConfiguracionPOS} from '../../services/sync/PosLanConfig';
+import {solicitudPOS} from '../../services/sync/PosLanClient';
 
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -44,7 +47,7 @@ export function SeleccionMesaScreen({
   const {
     comandas,
     cargando,
-    error,
+    error: errorComandas,
     abrirMesa,
   } = useComandasViewModel();
 
@@ -53,16 +56,12 @@ export function SeleccionMesaScreen({
 
   const [procesando, setProcesando] = useState(false);
 
-  // Configuración provisional.
-  // Posteriormente vendrá del módulo de mesas del POS.
-  const mesas = useMemo(
-    () =>
-      Array.from(
-        { length: Math.min(TOTAL_MESAS_DEMO, MAXIMO_MESAS) },
-        (_, indice) => indice + 1
-      ),
-    []
-  );
+  const [mesas,setMesas]=useState<number[]>([]),[errorMesas,setErrorMesas]=useState('');
+  const error=errorMesas||errorComandas;
+  useEffect(()=>{let activo=true;void(async()=>{
+    try{const c=await obtenerConfiguracionPOS();if(!c)throw new Error('Configura primero la conexion LAN del POS.');const r=await solicitudPOS(c.urlBase,c.token,'/mesas');if(!Array.isArray(r?.data?.mesas))throw new Error('Mesas POS invalidas.');const ids=r.data.mesas.map((m:{id:number})=>m.id);await (await obtenerBaseDatos()).runAsync('INSERT INTO pos_mesas_cache VALUES (1,?) ON CONFLICT(id) DO UPDATE SET documento=excluded.documento',JSON.stringify(ids));if(activo)setMesas(ids);}
+    catch(e){const cache=await (await obtenerBaseDatos()).getFirstAsync<{documento:string}>('SELECT documento FROM pos_mesas_cache WHERE id=1');if(activo){if(cache)setMesas(JSON.parse(cache.documento));setErrorMesas(cache?'Sin conexion: mesas guardadas; su ocupacion puede estar desactualizada.':e instanceof Error?e.message:'Sin conexion con POS');}}
+  })();return()=>{activo=false;};},[]);
 
   const comandasPorMesa = useMemo(() => {
     const resultado = new Map<number, string>();

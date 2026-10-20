@@ -1,3 +1,7 @@
+import { contenidoPOS } from './PosLanClient';
+import { crearPayloadPOS } from './CrearPayloadPOS';
+import { leerPedido } from '../../repositories/SQLitePedidoRepository';
+import type { PayloadPedidoPOS } from './PosLanClient';
 
 import { obtenerBaseDatos } from '../storage/database';
 
@@ -31,7 +35,7 @@ interface ItemLocal {
 
 export async function validarComandaSimplePOS(
   operacionId: string
-): Promise<ComandaSimplePOS> {
+): Promise<PayloadPedidoPOS> {
   const db = await obtenerBaseDatos();
 
   const registro = await db.getFirstAsync<RegistroLocal>(
@@ -66,6 +70,13 @@ export async function validarComandaSimplePOS(
 
   const datos = payload as Record<string, unknown>;
 
+  if(datos.versionContrato === 2) {
+    if(datos.requestId !== operacionId || datos.mesa !== Number(registro.mesa_id) || datos.meseroId !== registro.mesero_id || !Array.isArray(datos.productos)) throw new Error('Instant?nea incompatible.');
+    const preparada=await db.getFirstAsync<{documento:string}>('SELECT documento FROM preparaciones_mvvm WHERE request_id=?',operacionId);
+    if(!preparada || contenidoPOS(crearPayloadPOS(leerPedido(preparada.documento),operacionId))!==contenidoPOS(datos as unknown as PayloadPedidoPOS))throw new Error('La operacion no coincide con la instantanea inmutable.');
+    // La instant?nea v2 queda congelada en la misma transacci?n que la preparaci?n.
+    return datos as unknown as PayloadPedidoPOS;
+  }
   const campos = Object.keys(datos).sort().join(',');
 
   if (

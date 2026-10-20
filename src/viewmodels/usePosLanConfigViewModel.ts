@@ -8,7 +8,7 @@ import {
   type ConfiguracionPOS,
 } from '../services/sync/PosLanConfig';
 
-const URL_INICIAL = 'http://192.168.1.78:3101';
+const URL_INICIAL = '';
 
 async function verificarConexion(
   config: ConfiguracionPOS
@@ -49,6 +49,13 @@ async function verificarConexion(
     if (!Array.isArray(datos.mesas)) {
       throw new Error('Respuesta inesperada del POS.');
     }
+    const catalogo = await fetch(`${config.urlBase}/api/local/catalogo/v2`, {
+      headers: {Authorization:`Bearer ${config.token}`},signal:controller.signal,
+    });
+    if(!catalogo.ok)throw new Error(`Catalogo POS no disponible: HTTP ${catalogo.status}. Prepara el catalogo en la computadora.`);
+    const contrato=await catalogo.json();
+    if(contrato.versionContrato!==2||!Array.isArray(contrato.catalogo?.productos))throw new Error('El POS no admite el contrato LAN v2.');
+
   } finally {
     clearTimeout(timeout);
   }

@@ -63,7 +63,7 @@ let pedido;
 test('Flujo integrado sobre SQLite real', async t => {
   await t.test('migración incremental conserva operaciones v1', async () => {
     await obtenerBaseDatos();
-    assert.equal(sqlite.prepare('PRAGMA user_version').get().user_version,2);
+    assert.equal(sqlite.prepare('PRAGMA user_version').get().user_version,3);
     assert.equal(sqlite.prepare('SELECT COUNT(*) n FROM operaciones_pendientes').get().n,1);
     assert.equal(sqlite.prepare('SELECT mesa_id FROM comandas_locales WHERE id_local=?').get('old').mesa_id,'9');
   });
@@ -114,8 +114,9 @@ test('Flujo integrado sobre SQLite real', async t => {
     assert.equal(sqlite.prepare('SELECT COUNT(*) n FROM comandas_locales WHERE id_local=?').get(pedido.id).n,0);
     sqlite.exec('DROP TRIGGER impedir_cola');
     await Promise.all([prepararComanda(pedido.id),prepararComanda(pedido.id)]);
-    const ops=await listarSeguimiento();assert.equal(ops.length,1);assert.equal(ops[0].estado,'BLOQUEADA');assert.equal(ops[0].intentos,0);
-    assert.match(ops[0].ultimo_error,/presentaciones/);assert.match(ops[0].ultimo_error,/observaciones/);
+    const ops=await listarSeguimiento();assert.equal(ops.length,1);assert.equal(ops[0].estado,'PENDIENTE');assert.equal(ops[0].intentos,0);
+    const queued=JSON.parse(sqlite.prepare('SELECT payload_json FROM operaciones_pendientes WHERE id_operacion=?').get(ops[0].id_operacion).payload_json);
+    assert.equal(queued.versionContrato,2);assert.equal(queued.productos[0].observaciones,'Sin cebolla');assert.equal(queued.productos.length,2);
     const snap=sqlite.prepare('SELECT documento,request_id FROM preparaciones_mvvm').get();
     await assert.rejects(repo.guardar(pedido),/bloqueada/);
     await assert.rejects(repo.agregarProducto(pedido.id,item('another','x'),'m'),/bloqueada/);
@@ -200,6 +201,19 @@ test('Flujo integrado sobre SQLite real', async t => {
     const success=seed('success');
     await new SyncService({enviar:async()=>({status:201,duplicado:false,pedido:{...recibo,requestId:success.op}}),consultar:async()=>null}).enviarOperacionPOS(success.op,url,token);
     assert.equal(sqlite.prepare('SELECT estado FROM operaciones_pendientes WHERE id_operacion=?').get(success.op).estado,'CONFIRMADA');
+  });
+  await t.test('cancelar preparacion nunca enviada conserva archivo y requestId; intento incierto impide desbloqueo',async()=>{
+    const {cancelarPreparacion}=load('src/services/FlujoComandaService.ts');
+    const own=await repo.crearComanda(6,'m');await repo.agregarProducto(own.id,item('cancel-line','v'),'m');
+    await prepararComanda(own.id);const op=(await listarSeguimiento()).find(o=>o.comanda_id===own.id);
+    await cancelarPreparacion(op.id_operacion);
+    assert.equal(sqlite.prepare('SELECT estado FROM operaciones_pendientes WHERE id_operacion=?').get(op.id_operacion).estado,'CANCELADA');
+    assert.ok(sqlite.prepare('SELECT documento FROM preparaciones_archivo WHERE request_id=?').get(op.id_operacion));
+    assert.equal((await repo.obtenerPorId(own.id)).preparada,false);
+    await prepararComanda(own.id);const nueva=(await listarSeguimiento()).find(o=>o.comanda_id===own.id&&o.estado==='PENDIENTE');assert.notEqual(nueva.id_operacion,op.id_operacion);
+    sqlite.prepare("UPDATE operaciones_pendientes SET intentos=1,estado='RESULTADO_DESCONOCIDO' WHERE id_operacion=?").run(nueva.id_operacion);
+    await assert.rejects(cancelarPreparacion(nueva.id_operacion),/conciliacion/);
+    assert.ok(sqlite.prepare('SELECT request_id FROM preparaciones_mvvm WHERE request_id=?').get(nueva.id_operacion));
   });
   sqlite.close();fs.rmSync(dir,{recursive:true,force:true});
 });

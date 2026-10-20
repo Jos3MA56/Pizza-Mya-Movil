@@ -13,6 +13,7 @@ import {
 
 import {
   enviarPedidoPOS,
+  contenidoPOS,
   ErrorHTTPPOS,
   consultarPedidoPOS,
   type PayloadPedidoPOS,
@@ -427,7 +428,7 @@ export class SyncService {
             cantidad: number;
         }>;
 
-        const mismoContenido =
+        const mismoContenido = datos.versionContrato === 2 ? Boolean(pedido.contenido && contenidoPOS(pedido.contenido) === contenidoPOS(datos as unknown as PayloadPedidoPOS)) :
             pedido.requestId === operacion.id_operacion &&
             pedido.mesa === datos.mesa &&
             pedido.meseroId === datos.meseroId &&

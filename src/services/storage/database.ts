@@ -2,7 +2,7 @@
 import type * as SQLite from 'expo-sqlite';
 
 const DATABASE_NAME = 'pizza_mya.db';
-const DATABASE_VERSION = 2;
+const DATABASE_VERSION = 3;
 
 let databasePromise: Promise<SQLite.SQLiteDatabase> | null = null;
 
@@ -93,6 +93,11 @@ async function abrirBaseDatos(): Promise<SQLite.SQLiteDatabase> {
         CREATE TABLE demo_recibos (id TEXT PRIMARY KEY NOT NULL, documento TEXT NOT NULL);
         PRAGMA user_version = 2;
       `);
+    });
+  }
+  if(versionActual<3){
+    await db.withExclusiveTransactionAsync(async tx=>{
+      await tx.execAsync(`CREATE TABLE preparaciones_archivo(request_id TEXT PRIMARY KEY,documento TEXT NOT NULL,cancelada_en TEXT NOT NULL); CREATE TABLE pos_mesas_cache(id INTEGER PRIMARY KEY CHECK(id=1),documento TEXT NOT NULL); PRAGMA user_version=3;`);
     });
   }
   return db;
