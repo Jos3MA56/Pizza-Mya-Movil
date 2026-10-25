@@ -2,6 +2,7 @@
 import { obtenerBaseDatos, transaccionLocal } from '../services/storage/database';
 
 export type EstadoOperacion =
+  | 'CANCELADA'
   | 'BLOQUEADA'
   | 'PENDIENTE'
   | 'ENVIANDO'

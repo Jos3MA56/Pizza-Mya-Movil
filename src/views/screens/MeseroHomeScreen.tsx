@@ -90,11 +90,9 @@ export function MeseroHomeScreen() {
       return;
     }
 
-    // Activación controlada para pruebas.
-    // En producción permanece deshabilitada.
+    // La configuracion LAN habilita la cola real; el transporte demo queda separado.
     const habilitada =
-      __DEV__ &&
-      process.env.EXPO_PUBLIC_POS_SYNC_DEMO === 'true';
+      configurada;
 
     if (!habilitada) {
       console.log(
@@ -137,7 +135,7 @@ export function MeseroHomeScreen() {
       suscripcion.remove();
       procesadorAutomaticoPOS.detener();
     };
-  }, [usuario?.id, usuario?.rol]);
+  }, [usuario?.id, usuario?.rol, configurada]);
 
   return (
     <SafeAreaView style={styles.container}>
@@ -457,7 +455,7 @@ export function MeseroHomeScreen() {
           onPress={() =>
             Alert.alert(
               'Perfil',
-              `Sesión: ${usuario?.nombre ?? 'Mesero'}`,
+              `Sesion: ${usuario?.nombre ?? 'Mesero'}\nID para autorizar en POS: ${usuario?.id ?? ''}`,
               [
                 { text: 'Volver', style: 'cancel' },
                 {

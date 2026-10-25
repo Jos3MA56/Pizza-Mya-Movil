@@ -16,8 +16,9 @@ export function SeguimientoScreen({ pedidoId, onRegresar }: { pedidoId: string; 
       <Text>Intentos: {o.intentos} · ID remoto: {o.id_servidor ?? 'Sin confirmación'}</Text>
       {o.folio_confirmado && <Text>Folio POS: {o.folio_confirmado} · Total confirmado: ${((o.total_confirmado_centavos ?? 0) / 100).toFixed(2)}</Text>}
       {o.total_confirmado_centavos != null && o.total_local_centavos != null && o.total_confirmado_centavos !== o.total_local_centavos && <Text>Discrepancia: total local ${(o.total_local_centavos / 100).toFixed(2)}. Requiere revisión; se conservan ambos importes.</Text>}
-      <Text>Cocina operativa: recepción no verificada.</Text>
-      {['PENDIENTE','ERROR_REINTENTABLE','RESULTADO_DESCONOCIDO'].includes(o.estado) && <Pressable accessibilityRole="button" disabled={vm.ocupado} onPress={() => void vm.reintentar(o.id_operacion)}><Text>{o.estado === 'RESULTADO_DESCONOCIDO' ? 'Conciliar antes de reenviar' : 'Reintentar envío'}</Text></Pressable>}
+      <Text>{o.estado==='CONFIRMADA'&&o.version_contrato===2?'Ticket publicado en cocina POS; consulta su estado desde el perfil de cocina.':'Cocina pendiente de confirmacion del POS.'}</Text>
+      {o.intentos===0&&['BLOQUEADA','PENDIENTE'].includes(o.estado)&&<Pressable disabled={vm.ocupado} onPress={()=>void vm.cancelar(o.id_operacion)}><Text>Cancelar preparacion y desbloquear borrador</Text></Pressable>}
+      {(['PENDIENTE','ERROR_REINTENTABLE','RESULTADO_DESCONOCIDO'].includes(o.estado)||(o.estado==='RECHAZADA'&&/^HTTP_(401|403|422)(:|$)/.test(o.ultimo_error??''))) && <Pressable accessibilityRole="button" disabled={vm.ocupado} onPress={() => void vm.reintentar(o.id_operacion)}><Text>{o.estado === 'RESULTADO_DESCONOCIDO' ? 'Conciliar antes de reenviar' : o.estado==='RECHAZADA'?'Reintentar mismo contenido tras corregir el POS':'Reintentar envio'}</Text></Pressable>}
     </View>)}
     <Text style={{ fontSize: 22, fontWeight: 'bold' }}>Demostración local</Text>
     <Text>Transporte simulado en este dispositivo. No confirma recepción del POS ni comunica dispositivos. La copia de demostración queda aislada del borrador operativo.</Text>

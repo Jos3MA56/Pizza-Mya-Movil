@@ -13,6 +13,7 @@ import {
 
 import {
   enviarPedidoPOS,
+  contenidoPOS,
   ErrorHTTPPOS,
   consultarPedidoPOS,
   type PayloadPedidoPOS,
@@ -246,7 +247,7 @@ export class SyncService {
                 else if (error instanceof ErrorHTTPPOS &&
                     error.status >= 400 &&
                     error.status < 500) {
-                    await registrarEstadoNoConfirmadoPOS(operacionId, 'RECHAZADA', `HTTP_${error.status}`);
+                    await registrarEstadoNoConfirmadoPOS(operacionId, 'RECHAZADA', `HTTP_${error.status}: ${error.message.slice(0, 300)}`);
                 }
                 else if (error instanceof Error &&
                     error.message === 'POS_TIMEOUT') {
@@ -427,7 +428,7 @@ export class SyncService {
             cantidad: number;
         }>;
 
-        const mismoContenido =
+        const mismoContenido = datos.versionContrato === 2 ? Boolean(pedido.contenido && contenidoPOS(pedido.contenido) === contenidoPOS(datos as unknown as PayloadPedidoPOS)) :
             pedido.requestId === operacion.id_operacion &&
             pedido.mesa === datos.mesa &&
             pedido.meseroId === datos.meseroId &&

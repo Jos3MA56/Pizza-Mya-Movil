@@ -1,5 +1,5 @@
 ﻿import { useCallback, useEffect, useState } from 'react';
-import { listarSeguimiento, prepararComanda, reintentarSeguimiento } from '../services/FlujoComandaService';
+import { listarSeguimiento, prepararYEnviar, cancelarPreparacion, reintentarSeguimiento } from '../services/FlujoComandaService';
 import { demoCocinaService, type EscenarioDemo } from '../services/DemoCocinaService';
 export function useSeguimientoViewModel(pedidoId: string) {
   const [operaciones, setOperaciones] = useState<Awaited<ReturnType<typeof listarSeguimiento>>>([]);
@@ -24,7 +24,8 @@ export function useSeguimientoViewModel(pedidoId: string) {
     finally { setOcupado(false); }
   };
   return { operaciones, demos, cocina, error, ocupado, cargar,
-    preparar: () => ejecutar(() => prepararComanda(pedidoId)),
+    preparar: () => ejecutar(() => prepararYEnviar(pedidoId)),
+    cancelar: (id:string) => ejecutar(() => cancelarPreparacion(id)),
     reintentar: (id: string) => ejecutar(() => reintentarSeguimiento(id)),
     crearDemo: () => ejecutar(() => demoCocinaService.crear(pedidoId)),
     simular: (id: string, escenario: EscenarioDemo) => ejecutar(() => demoCocinaService.procesar(id, escenario)) };

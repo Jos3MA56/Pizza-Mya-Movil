@@ -32,7 +32,8 @@
     "test:offline": "node scripts/test-offline-sqlite.cjs",
     "test:patterns": "node scripts/test-patrones.cjs",
     "test:api": "node scripts/test-api.cjs",
-    "test:unit": "jest --runInBand"
+    "test:unit": "jest --runInBand",
+    "test:pos-client": "node scripts/test-pos-client.cjs"
   },
   "private": true
 }
