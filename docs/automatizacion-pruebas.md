@@ -16,7 +16,7 @@ No requiere Supabase, un teléfono, credenciales ni el servidor POS real. Los re
 
 ## Uso local
 
-Instalar la versión de Node indicada en .nvmrc, ejecutar npm ci y después npm run test:ci. Este comando ejecuta las mismas suites y se detiene ante el primer error. Para obtener también el informe local de cobertura: npm run test:unit -- --ci --coverage --json --outputFile=test-results/jest.json.
+Instalar la versión de Node indicada en .nvmrc, ejecutar npm ci y después npm run test:ci. Este comando ejecuta las mismas suites y se detiene ante el primer error. El comando incluye el informe de cobertura. Para ejecutar solamente Jest con sus informes: npm run test:unit:ci. Este comando crea primero el directorio de resultados, también en una instalación limpia.
 
 ## Revisión e integración
 

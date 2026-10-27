@@ -36,7 +36,7 @@ jobs:
       - name: Comprobar TypeScript
         run: npm run typecheck
       - name: Probar pantallas, ViewModels y repositorios
-        run: npm run test:unit -- --ci --coverage --json --outputFile=test-results/jest.json
+        run: npm run test:unit:ci
       - name: Probar patrones de diseño
         run: npm run test:patterns
       - name: Probar cliente API sin red externa
