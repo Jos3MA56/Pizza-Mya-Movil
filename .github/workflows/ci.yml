@@ -1,0 +1,59 @@
+name: Pruebas móviles
+
+on:
+  push:
+  pull_request:
+    branches: [develop, main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pruebas-moviles-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  pruebas:
+    name: TypeScript y pruebas móviles
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      CI: 'true'
+      EXPO_NO_TELEMETRY: '1'
+    steps:
+      - name: Obtener código
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - name: Preparar Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - name: Instalar dependencias del lockfile
+        run: npm ci
+      - name: Comprobar TypeScript
+        run: npm run typecheck
+      - name: Probar pantallas, ViewModels y repositorios
+        run: npm run test:unit -- --ci --coverage --json --outputFile=test-results/jest.json
+      - name: Probar patrones de diseño
+        run: npm run test:patterns
+      - name: Probar cliente API sin red externa
+        run: npm run test:api
+      - name: Probar persistencia y sincronización SQLite
+        run: npm run test:offline
+      - name: Probar envío de pedidos al POS
+        run: npm run test:pos-client
+      - name: Probar recepción y estados de cocina
+        run: npm run test:cocina-pos
+      - name: Conservar resultados y cobertura
+        if: ${{ always() }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: resultados-pruebas-moviles
+          path: |
+            coverage/
+            test-results/
+          if-no-files-found: ignore
+          retention-days: 14
