@@ -1,6 +1,7 @@
 
 import React from 'react';
 import { Alert } from 'react-native';
+
 import { NavigationContainer } from '@react-navigation/native';
 import {
   createNativeStackNavigator,
@@ -8,28 +9,27 @@ import {
 } from '@react-navigation/native-stack';
 
 import { useAuth } from '../context/AuthContext';
+
 import { LoginScreen } from '../views/screens/LoginScreen';
 import { MeseroHomeScreen } from '../views/screens/MeseroHomeScreen';
+import { CatalogoScreen } from '../views/screens/CatalogoScreen';
 import { CocinaHomeScreen } from '../views/screens/CocinaHomeScreen';
 import { EditarComandaScreen } from '../views/screens/EditarComandaScreen';
 
 import { PersonalizarPizzaScreen } from '../views/screens/PersonalizarPizzaScreen';
-
 import {
   ComplementosScreen,
   type ComplementoSeleccionado,
 } from '../views/screens/ComplementosScreen';
 
-import type {
-  PersonalizacionPizza,
-} from '../models/PersonalizacionPizza';
-
+import type { PersonalizacionPizza } from '../models/PersonalizacionPizza';
 import { calcularPrecioPizza } from '../services/calcularPrecioPizza';
 
 import {
   TipoPedidoScreen,
   type TipoPedido,
 } from '../views/screens/TipoPedidoScreen';
+
 import { SeleccionMesaScreen } from '../views/screens/SeleccionMesaScreen';
 import { PedidoResumenScreen } from '../views/screens/PedidoResumenScreen';
 
@@ -39,6 +39,7 @@ export type RootStackParamList = {
   CocinaHome: undefined;
   AccesoNoAutorizado: undefined;
   TipoPedido: undefined;
+  Catalogo: { pedidoId?: string } | undefined;
   SeleccionMesa: undefined;
   PedidoResumen: {
     pedidoId: string;
@@ -46,26 +47,21 @@ export type RootStackParamList = {
   EditarComanda: {
     pedidoId: string;
   };
-  
-PersonalizarPizzaDemo: {
-  pedidoId: string;
+  PersonalizarPizzaDemo: {
+    pedidoId: string;
+  };
+  ComplementosDemo: {
+    pedidoId: string;
+    pizza: PersonalizacionPizza;
+  };
 };
 
-ComplementosDemo: {
-  pedidoId: string;
-  pizza: PersonalizacionPizza;
-};
+const Stack = createNativeStackNavigator<RootStackParamList>();
 
-};
-
-const Stack =
-  createNativeStackNavigator<RootStackParamList>();
-
-type TipoPedidoRouteProps =
-  NativeStackScreenProps<
-    RootStackParamList,
-    'TipoPedido'
-  >;
+type TipoPedidoRouteProps = NativeStackScreenProps<
+  RootStackParamList,
+  'TipoPedido'
+>;
 
 function TipoPedidoRoute({
   navigation,
@@ -84,11 +80,10 @@ function TipoPedidoRoute({
   );
 }
 
-type SeleccionMesaRouteProps =
-  NativeStackScreenProps<
-    RootStackParamList,
-    'SeleccionMesa'
-  >;
+type SeleccionMesaRouteProps = NativeStackScreenProps<
+  RootStackParamList,
+  'SeleccionMesa'
+>;
 
 function SeleccionMesaRoute({
   navigation,
@@ -97,19 +92,16 @@ function SeleccionMesaRoute({
     <SeleccionMesaScreen
       onRegresar={() => navigation.goBack()}
       onAbrirComanda={(pedidoId) => {
-        navigation.navigate('PedidoResumen', {
-          pedidoId,
-        });
+        navigation.navigate('PedidoResumen', { pedidoId });
       }}
     />
   );
 }
 
-type PedidoResumenRouteProps =
-  NativeStackScreenProps<
-    RootStackParamList,
-    'PedidoResumen'
-  >;
+type PedidoResumenRouteProps = NativeStackScreenProps<
+  RootStackParamList,
+  'PedidoResumen'
+>;
 
 function PedidoResumenRoute({
   navigation,
@@ -119,15 +111,13 @@ function PedidoResumenRoute({
     <PedidoResumenScreen
       pedidoId={route.params.pedidoId}
       onRegresar={() => navigation.goBack()}
-      
-onAgregarProductos={() => {
-  navigation.navigate('PersonalizarPizzaDemo', {
-    pedidoId: route.params.pedidoId,
-  });
-}}
-
+      onAgregarProductos={() => {
+        navigation.navigate('PersonalizarPizzaDemo', {
+          pedidoId: route.params.pedidoId,
+        });
+      }}
       onEditarComanda={() => {
-          navigation.navigate('EditarComanda', {
+        navigation.navigate('EditarComanda', {
           pedidoId: route.params.pedidoId,
         });
       }}
@@ -135,11 +125,10 @@ onAgregarProductos={() => {
   );
 }
 
-type EditarComandaRouteProps =
-  NativeStackScreenProps<
-    RootStackParamList,
-    'EditarComanda'
-  >;
+type EditarComandaRouteProps = NativeStackScreenProps<
+  RootStackParamList,
+  'EditarComanda'
+>;
 
 function EditarComandaRoute({
   navigation,
@@ -154,12 +143,29 @@ function EditarComandaRoute({
   );
 }
 
+type CatalogoRouteProps = NativeStackScreenProps<
+  RootStackParamList,
+  'Catalogo'
+>;
 
-type PersonalizarPizzaRouteProps =
-  NativeStackScreenProps<
-    RootStackParamList,
-    'PersonalizarPizzaDemo'
-  >;
+function CatalogoRoute({
+  navigation,
+  route,
+}: CatalogoRouteProps) {
+  return (
+    <CatalogoScreen
+      pedidoId={route.params?.pedidoId}
+      onRegresar={() => navigation.goBack()}
+      onAgregado={() => navigation.goBack()}
+      onCrearPedido={() => navigation.navigate('TipoPedido')}
+    />
+  );
+}
+
+type PersonalizarPizzaRouteProps = NativeStackScreenProps<
+  RootStackParamList,
+  'PersonalizarPizzaDemo'
+>;
 
 function PersonalizarPizzaRoute({
   navigation,
@@ -178,11 +184,10 @@ function PersonalizarPizzaRoute({
   );
 }
 
-type ComplementosRouteProps =
-  NativeStackScreenProps<
-    RootStackParamList,
-    'ComplementosDemo'
-  >;
+type ComplementosRouteProps = NativeStackScreenProps<
+  RootStackParamList,
+  'ComplementosDemo'
+>;
 
 function ComplementosRoute({
   navigation,
@@ -203,8 +208,7 @@ function ComplementosRoute({
     );
 
     const totalDemostrativo =
-      (precioPizza.totalCentavos +
-        totalComplementos) / 100;
+      (precioPizza.totalCentavos + totalComplementos) / 100;
 
     const descripcionPizza =
       pizza.modalidad === 'mitad_mitad'
@@ -257,15 +261,12 @@ function ComplementosRoute({
   );
 }
 
-
 export function RootNavigator() {
   const { usuario } = useAuth();
 
   return (
     <NavigationContainer>
-      <Stack.Navigator
-        screenOptions={{ headerShown: false }}
-      >
+      <Stack.Navigator screenOptions={{ headerShown: false }}>
         {!usuario ? (
           <Stack.Screen
             name="Login"
@@ -278,6 +279,10 @@ export function RootNavigator() {
               component={MeseroHomeScreen}
             />
             <Stack.Screen
+              name="Catalogo"
+              component={CatalogoRoute}
+            />
+            <Stack.Screen
               name="TipoPedido"
               component={TipoPedidoRoute}
             />
@@ -288,22 +293,19 @@ export function RootNavigator() {
             <Stack.Screen
               name="PedidoResumen"
               component={PedidoResumenRoute}
-            />   
+            />
             <Stack.Screen
               name="EditarComanda"
               component={EditarComandaRoute}
             />
-            
-<Stack.Screen
-  name="PersonalizarPizzaDemo"
-  component={PersonalizarPizzaRoute}
-/>
-
-<Stack.Screen
-  name="ComplementosDemo"
-  component={ComplementosRoute}
-/>
-
+            <Stack.Screen
+              name="PersonalizarPizzaDemo"
+              component={PersonalizarPizzaRoute}
+            />
+            <Stack.Screen
+              name="ComplementosDemo"
+              component={ComplementosRoute}
+            />
           </>
         ) : usuario.rol === 'cocina' ? (
           <Stack.Screen

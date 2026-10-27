@@ -109,7 +109,7 @@ export function EditarComandaScreen({
                 return (
                   <View key={producto.id} style={styles.tarjeta}>
                     <Text style={styles.nombre}>
-                      {producto.nombre}
+                      {producto.nombre}{producto.tamanio ? ' · ' + producto.tamanio : ''}
                     </Text>
 
                     <Text style={styles.textoSecundario}>
