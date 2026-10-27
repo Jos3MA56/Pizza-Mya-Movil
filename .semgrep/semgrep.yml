@@ -1,0 +1,23 @@
+rules:
+  - id: pizza-mya-logging-sensitive-data
+    languages: [typescript, javascript]
+    severity: WARNING
+    message: Evitar imprimir tokens o contraseñas en la consola.
+    patterns:
+      - pattern: console.$METHOD(..., $DATA, ...)
+      - metavariable-regex:
+          metavariable: $DATA
+          regex: (?i).*(token|password|contrasena|contraseña|secret|jwt).*
+    metadata:
+      category: security
+      project: pizza-mya-movil
+  - id: pizza-mya-dynamic-execution
+    languages: [typescript, javascript]
+    severity: ERROR
+    message: Evitar ejecutar código generado desde cadenas en la aplicación móvil.
+    pattern-either:
+      - pattern: eval(...)
+      - pattern: new Function(...)
+    metadata:
+      category: security
+      cwe: CWE-95

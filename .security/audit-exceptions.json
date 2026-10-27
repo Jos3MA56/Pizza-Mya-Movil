@@ -1,0 +1,8 @@
+[
+  {
+    "paquete": "zod",
+    "url": "https://github.com/advisories/GHSA-mrhx-c7xc-m3w5",
+    "revisarAntesDe": "2026-11-27",
+    "motivo": "Dependencia transitiva de herramientas Expo CLI. npm propone degradar Expo 57 a 54 con --force. Se registra temporalmente para evaluar una corrección compatible por separado; no implica que el riesgo esté corregido. La excepción solo cubre este advisory alto, nunca uno crítico."
+  }
+]

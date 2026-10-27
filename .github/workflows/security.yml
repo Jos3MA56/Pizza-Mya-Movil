@@ -1,0 +1,64 @@
+name: Seguridad móvil
+
+on:
+  push:
+  pull_request:
+    branches: [develop, main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: seguridad-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  semgrep:
+    name: Semgrep SAST
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    container:
+      image: semgrep/semgrep:1.182.1
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - name: Validar reglas propias con casos positivos y negativos
+        run: semgrep --test --config .semgrep/semgrep.yml .semgrep/tests/
+      - name: Detectar exposición de datos y ejecución dinámica
+        run: semgrep scan --config .semgrep/semgrep.yml --metrics off --error --strict --json --output semgrep-proyecto.json src/
+      - name: Revisar reglas generales de seguridad
+        run: semgrep scan --config p/security-audit --metrics off --strict --severity ERROR --error --json --output semgrep-general.json src/
+      - name: Conservar informes SAST
+        if: ${{ always() }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: seguridad-semgrep
+          path: semgrep-*.json
+          retention-days: 14
+          if-no-files-found: ignore
+
+  dependencias:
+    name: Auditoría de dependencias
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version-file: .nvmrc
+      - name: Verificar política de auditoría
+        run: node --test scripts/security/__tests__/audit.test.cjs scripts/security/__tests__/mobsf.test.cjs
+      - name: Revisar vulnerabilidades conocidas y nuevas
+        run: node scripts/security/audit.cjs
+      - name: Conservar auditoría completa
+        if: ${{ always() }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: seguridad-dependencias
+          path: security-results/
+          retention-days: 14
+          if-no-files-found: ignore
