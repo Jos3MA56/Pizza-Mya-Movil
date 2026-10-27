@@ -1,0 +1,48 @@
+name: CI - Pizza Mya Movil
+
+on:
+  pull_request:
+    branches:
+      - develop
+      - main
+      - "release/**"
+
+  push:
+    branches:
+      - develop
+      - main
+      - "release/**"
+      - "feature/**"
+
+  workflow_dispatch:
+
+jobs:
+  pruebas:
+    name: Pruebas automaticas
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Descargar codigo
+        uses: actions/checkout@v4
+
+      - name: Configurar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+
+      - name: Instalar dependencias
+        run: npm ci
+
+      - name: Validar TypeScript
+        run: npx tsc --noEmit
+
+      - name: Ejecutar pruebas de patrones
+        run: npm run test:patterns
+
+      - name: Ejecutar pruebas de API
+        run: npm run test:api
+
+      - name: Ejecutar pruebas unitarias
+        run: npm run test:unit
