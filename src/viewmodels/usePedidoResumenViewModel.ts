@@ -43,7 +43,11 @@ export function usePedidoResumenViewModel(
         if (activo) setCargando(false);
       });
 
+    const timer = setInterval(() => {
+      void repositorio.obtenerPorId(id).then(p => { if (activo) setPedido(p); }).catch(() => undefined);
+    }, 3000);
     return () => {
+      clearInterval(timer);
       activo = false;
       desuscribir();
     };

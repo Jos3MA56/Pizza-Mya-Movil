@@ -18,6 +18,7 @@ interface Props {
   pedidoId: string;
   onRegresar: () => void;
   onEditarComanda: () => void;
+  onSeguimiento?: () => void;
 }
 
 const C = {
@@ -35,6 +36,7 @@ export function PedidoResumenScreen({
   pedidoId,
   onRegresar,
   onEditarComanda,
+  onSeguimiento,
 }: Props) {
   const {
     pedido,
@@ -104,7 +106,7 @@ export function PedidoResumenScreen({
               <Text style={styles.agregarTexto}>Mi pedido ({productosVisibles.reduce((n, p) => n + p.cantidad, 0)})</Text>
             </Pressable>
           </View>
-          {seccion === 'catalogo' ? <CatalogoScreen embebido pedidoId={pedidoId}
+          {seccion === 'catalogo' && !pedido.preparada ? <CatalogoScreen embebido pedidoId={pedidoId}
             onRegresar={() => setSeccion('resumen')} onAgregado={() => undefined}
             onCrearPedido={() => undefined} /> : <ScrollView
             style={styles.contenido}
@@ -208,10 +210,10 @@ export function PedidoResumenScreen({
               ))
             )}
 
-            <Pressable style={styles.agregar} onPress={() => setSeccion('catalogo')} accessibilityRole="button">
+            <Pressable disabled={pedido.preparada} style={styles.agregar} onPress={() => setSeccion('catalogo')} accessibilityRole="button">
               <Text style={styles.agregarTexto}>+ Agregar productos</Text>
             </Pressable>
-            <Pressable style={styles.agregar} onPress={onEditarComanda} accessibilityRole="button">
+            <Pressable disabled={pedido.preparada} style={styles.agregar} onPress={onEditarComanda} accessibilityRole="button">
               <Text style={styles.agregarTexto}>✎ Editar comanda</Text>
             </Pressable>
 
@@ -227,9 +229,8 @@ export function PedidoResumenScreen({
             </View>
 
             <Text style={styles.aviso}>
-              Los datos se mantienen temporalmente en memoria.
-              Esta pantalla no confirma el envío a cocina
-              ni al POS.
+              {pedido.preparada ? 'Instantánea preparada: edición bloqueada. ' : ''}Comanda guardada en SQLite. Preparar bloquea la instantánea para edición.
+              Consulta Seguimiento para revisar compatibilidad y la demostración local.
             </Text>
           </ScrollView>}
 
@@ -246,18 +247,11 @@ export function PedidoResumenScreen({
 
             <Pressable
               style={styles.boton}
-              onPress={() => seccion === 'catalogo' ? setSeccion('resumen') :
-                Alert.alert(
-                  'Confirmación pendiente',
-                  'El envío de comandas al POS y cocina ' +
-                    'se integrará cuando esté disponible ' +
-                    'el módulo de sincronización.'
-                )
-              }
+              onPress={() => seccion === 'catalogo' ? setSeccion('resumen') : onSeguimiento?.()}
               accessibilityRole="button"
             >
               <Text style={styles.botonTexto}>
-                {seccion === 'catalogo' ? 'Ver mi pedido' : 'Confirmar pedido'}
+                {seccion === 'catalogo' ? 'Ver mi pedido' : 'Preparar / seguimiento'}
               </Text>
             </Pressable>
           </View>

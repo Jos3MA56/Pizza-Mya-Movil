@@ -1,7 +1,9 @@
 
-import { obtenerBaseDatos } from '../services/storage/database';
+import { obtenerBaseDatos, transaccionLocal } from '../services/storage/database';
 
 export type EstadoOperacion =
+  | 'CANCELADA'
+  | 'BLOQUEADA'
   | 'PENDIENTE'
   | 'ENVIANDO'
   | 'CONFIRMADA'
@@ -76,7 +78,7 @@ export async function registrarErrorReintentable(
 ): Promise<void> {
   const db = await obtenerBaseDatos();
 
-  await db.withExclusiveTransactionAsync(async (tx) => {
+  await transaccionLocal(db, async (tx) => {
     const operacion = await tx.getFirstAsync<{
       intentos: number;
     }>(
@@ -165,6 +167,7 @@ export async function recuperarEnviosInterrumpidos(): Promise<number> {
 }
 
 export interface OperacionConPayload extends OperacionLocal {
+  mesero_id: string;
   payload_json: string;
 }
 
@@ -178,7 +181,7 @@ export async function obtenerOperacionConPayload(
   return db.getFirstAsync<OperacionConPayload>(
     `SELECT id_operacion, comanda_id, tipo, estado,
             intentos, proximo_intento_en,
-            ultimo_error, creada_en, payload_json
+            ultimo_error, creada_en, payload_json, mesero_id
      FROM operaciones_pendientes
      WHERE id_operacion = ?`,
     [id]
@@ -189,7 +192,8 @@ export async function obtenerOperacionConPayload(
 // Ambas actualizaciones deben completarse juntas.
 export async function confirmarOperacionPOS(
   operacionId: string,
-  pedidoIdPOS: string
+  pedidoIdPOS: string,
+  recibo?: { folio: string; totalCentavos: number }
 ): Promise<void> {
   if (!pedidoIdPOS.trim()) {
     throw new Error('El identificador del POS es obligatorio.');
@@ -198,7 +202,7 @@ export async function confirmarOperacionPOS(
   const db = await obtenerBaseDatos();
   const fecha = new Date().toISOString();
 
-  await db.withExclusiveTransactionAsync(async (tx) => {
+  await transaccionLocal(db, async (tx) => {
     const operacion = await tx.getFirstAsync<{
       comanda_id: string;
       estado: string;
@@ -234,11 +238,13 @@ export async function confirmarOperacionPOS(
     const resultadoComanda = await tx.runAsync(
       `UPDATE comandas_locales
        SET id_servidor = ?,
+           folio_confirmado = ?, total_confirmado_centavos = ?,
            estado_sync = 'CONFIRMADA',
            actualizada_en = ?
        WHERE id_local = ?`,
       [
         pedidoIdPOS,
+        recibo?.folio ?? null, recibo ? recibo.totalCentavos : null,
         fecha,
         operacion.comanda_id,
       ]
@@ -257,7 +263,7 @@ export async function registrarConflictoPOS(
   const db = await obtenerBaseDatos();
   const fecha = new Date().toISOString();
 
-  await db.withExclusiveTransactionAsync(async (tx) => {
+  await transaccionLocal(db, async (tx) => {
     const operacion = await tx.getFirstAsync<{
       comanda_id: string;
     }>(
@@ -308,7 +314,7 @@ export async function registrarEstadoNoConfirmadoPOS(
   const db = await obtenerBaseDatos();
   const fecha = new Date().toISOString();
 
-  await db.withExclusiveTransactionAsync(async (tx) => {
+  await transaccionLocal(db, async (tx) => {
     const operacion = await tx.getFirstAsync<{
       comanda_id: string;
     }>(
@@ -354,7 +360,8 @@ export async function registrarEstadoNoConfirmadoPOS(
 
 export async function confirmarOperacionConciliadaPOS(
   operacionId: string,
-  pedidoIdPOS: string
+  pedidoIdPOS: string,
+  recibo?: { folio: string; totalCentavos: number }
 ): Promise<void> {
   if (!operacionId.trim() || !pedidoIdPOS.trim()) {
     throw new Error('Identificadores obligatorios.');
@@ -363,7 +370,7 @@ export async function confirmarOperacionConciliadaPOS(
   const db = await obtenerBaseDatos();
   const fecha = new Date().toISOString();
 
-  await db.withExclusiveTransactionAsync(async (tx) => {
+  await transaccionLocal(db, async (tx) => {
     const registro = await tx.getFirstAsync<{
       comanda_id: string;
       id_servidor: string | null;
@@ -408,10 +415,11 @@ export async function confirmarOperacionConciliadaPOS(
     const resultadoComanda = await tx.runAsync(
       `UPDATE comandas_locales
        SET id_servidor = ?,
+           folio_confirmado = ?, total_confirmado_centavos = ?,
            estado_sync = 'CONFIRMADA',
            actualizada_en = ?
        WHERE id_local = ?`,
-      [pedidoIdPOS, fecha, registro.comanda_id]
+      [pedidoIdPOS, recibo?.folio ?? null, recibo ? recibo.totalCentavos : null, fecha, registro.comanda_id]
     );
 
     if (resultadoComanda.changes !== 1) {

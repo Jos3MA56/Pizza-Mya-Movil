@@ -1,3 +1,5 @@
+import { obtenerConfiguracionPOS } from '../services/sync/PosLanConfig';
+import { solicitudPOS } from '../services/sync/PosLanClient';
 import type { Catalogo } from '../models/Catalogo';
 import { ApiClient } from '../services/api/ApiClient';
 import { agruparEspecialidades } from '../services/AgruparEspecialidades';
@@ -70,6 +72,13 @@ export class HttpCatalogoRepository implements CatalogoRepository {
   ) {}
 
   async obtener(): Promise<Catalogo> {
+    const config = !this.cliente ? await obtenerConfiguracionPOS() : null;
+    if(config) {
+      const respuesta = await solicitudPOS(config.urlBase,config.token,'/catalogo/v2');
+      if(!respuesta?.data?.catalogo?.productos || !Array.isArray(respuesta.data.catalogo.categorias)) throw new Error('Cat?logo POS inv?lido.');
+      const c = respuesta.data.catalogo as Catalogo;
+      return {...c,productos:agruparEspecialidades(c.productos,c.categorias)};
+    }
     // Crear al consultar para que una URL ausente aparezca como error recuperable en pantalla.
     const cliente = this.cliente ?? new ApiClient({ baseUrl: API_BASE_URL });
     const prefijo = this.prefijo.replace(/\/+$/, '');

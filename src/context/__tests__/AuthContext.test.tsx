@@ -1,3 +1,4 @@
+jest.mock('../../services/SesionAutenticada', () => ({ guardarSesionLocal: jest.fn(async () => undefined), recuperarSesionLocal: jest.fn(async () => null), eliminarSesionLocal: jest.fn(async () => undefined) }));
 
 import React from 'react';
 import {

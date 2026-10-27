@@ -1,6 +1,6 @@
 
 import * as Crypto from 'expo-crypto';
-import { obtenerBaseDatos } from '../services/storage/database';
+import { obtenerBaseDatos, transaccionLocal } from '../services/storage/database';
 
 export interface ProductoComandaLocal {
   productoId: string;
@@ -136,7 +136,7 @@ export async function crearComandaPendiente(
         items: [],
       });
 
-  await db.withExclusiveTransactionAsync(async (tx) => {
+  await transaccionLocal(db, async (tx) => {
     await tx.runAsync(
       `INSERT INTO comandas_locales
        (id_local, mesa_id, mesero_id, estado_sync,

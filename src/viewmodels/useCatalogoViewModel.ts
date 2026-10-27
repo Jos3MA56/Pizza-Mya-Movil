@@ -1,3 +1,4 @@
+import { CachedCatalogoRepository } from '../repositories/CachedCatalogoRepository';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import * as Crypto from 'expo-crypto';
 import type { Catalogo, ProductoCatalogo } from '../models/Catalogo';
@@ -6,7 +7,7 @@ import type { PedidoRepository } from '../repositories/PedidoRepository';
 import { PedidoRepositorySingleton } from '../services/PedidoRepositorySingleton';
 import { agregarProductoCatalogo } from '../services/AgregarProductoCatalogo';
 
-const catalogoPorDefecto = new HttpCatalogoRepository();
+const catalogoPorDefecto = new CachedCatalogoRepository();
 const pedidosPorDefecto = PedidoRepositorySingleton.obtenerInstancia().obtenerRepositorio();
 
 export function useCatalogoViewModel(
@@ -16,6 +17,7 @@ export function useCatalogoViewModel(
   pedidos: PedidoRepository = pedidosPorDefecto,
 ) {
   const [catalogo, setCatalogo] = useState<Catalogo>({ categorias: [], productos: [] });
+  const [cache, setCache] = useState<{ guardado: boolean; fecha?: string; aviso?: string }>({ guardado: false });
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [errorAgregar, setErrorAgregar] = useState<string | null>(null);
@@ -39,6 +41,7 @@ export function useCatalogoViewModel(
       const datos = await repositorio.obtener();
       if (actual !== generacion.current) return;
       setCatalogo(datos);
+      if (repositorio instanceof CachedCatalogoRepository) setCache({ ...repositorio.estado });
       setCategoriaId(id => datos.categorias.some(c => c.id === id) ? id : '');
     } catch (causa) {
       if (actual === generacion.current) {
@@ -88,7 +91,7 @@ export function useCatalogoViewModel(
     }
   };
 
-  return { categorias: catalogo.categorias, productos, cargando, error, errorAgregar,
+  return { cache, categorias: catalogo.categorias, productos, cargando, error, errorAgregar,
     categoriaId, setCategoriaId, busqueda, setBusqueda, seleccionado, seleccionar,
     varianteId, setVarianteId, variante, cantidad, setCantidad, agregando, agregar, cargar };
 }

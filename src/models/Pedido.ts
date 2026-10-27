@@ -44,6 +44,8 @@ export interface CambioComanda {
 }
 
 export interface Pedido {
+  revision?: number;
+  preparada?: boolean;
   id: string;
   folio?: string;
   estado: EstadoPedido;

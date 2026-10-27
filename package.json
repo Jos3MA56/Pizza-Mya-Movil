@@ -29,9 +29,12 @@
     "android": "expo start --android",
     "ios": "expo start --ios",
     "web": "expo start --web",
+    "test:offline": "node scripts/test-offline-sqlite.cjs",
     "test:patterns": "node scripts/test-patrones.cjs",
     "test:api": "node scripts/test-api.cjs",
-    "test:unit": "jest --runInBand"
+    "test:unit": "jest --runInBand",
+    "test:pos-client": "node scripts/test-pos-client.cjs",
+    "test:cocina-pos": "node scripts/test-cocina-pos.cjs"
   },
   "private": true
 }

@@ -28,6 +28,9 @@ export function CatalogoScreen({ pedidoId, onRegresar, onAgregado, onCrearPedido
         <Text style={s.titulo}>{embebido ? 'Catálogo de productos' : 'Menú de Pizza Mya'}</Text>
         <Text style={s.secundario}>{pedidoId ? 'Elige productos para tu comanda' : 'Categorías, productos y presentaciones'}</Text>
       </View>
+      <Text style={s.secundario}>{vm.cache?.guardado ? 'Catálogo guardado' : 'Catálogo'} {vm.cache?.fecha ? new Date(vm.cache.fecha).toLocaleString() : ''}</Text>
+      {vm.cache?.aviso && <Text style={s.secundario}>{vm.cache.aviso}. Imágenes sujetas a conexión.</Text>}
+      <Pressable accessibilityRole="button" onPress={() => void vm.cargar()}><Text style={s.enlace}>Actualizar</Text></Pressable>
       {!!mensaje && <Text accessibilityRole="alert" style={s.exito}>{mensaje}</Text>}
       {vm.cargando ? <ActivityIndicator style={s.estado} size="large" color="#991F19" accessibilityLabel="Cargando catálogo" />
         : vm.error ? <View style={s.estado}>
@@ -83,7 +86,7 @@ export function CatalogoScreen({ pedidoId, onRegresar, onAgregado, onCrearPedido
               </>}
             </View>;
           }}
-          ListFooterComponent={pedidoId ? <Text style={s.aviso}>Los productos se agregan a la comanda local de esta sesión. Esta acción no envía al POS.</Text> : null}
+          ListFooterComponent={pedidoId ? <Text style={s.aviso}>Los productos se agregan a la comanda local persistida. Esta acción no envía al POS.</Text> : null}
         />}
     </Contenedor>
   );
