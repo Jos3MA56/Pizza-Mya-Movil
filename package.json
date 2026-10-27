@@ -36,8 +36,10 @@
     "test:pos-client": "node scripts/test-pos-client.cjs",
     "test:cocina-pos": "node scripts/test-cocina-pos.cjs",
     "typecheck": "tsc --noEmit",
-    "test:ci": "npm run typecheck && npm run test:unit:ci && npm run test:patterns && npm run test:api && npm run test:offline && npm run test:pos-client && npm run test:cocina-pos",
-    "test:unit:ci": "node -e \"require('node:fs').mkdirSync('test-results', {recursive:true})\" && npm run test:unit -- --ci --coverage --json --outputFile=test-results/jest.json"
+    "test:ci": "npm run typecheck && npm run test:unit:ci && npm run test:patterns && npm run test:api && npm run test:offline && npm run test:pos-client && npm run test:cocina-pos && npm run test:security-tools",
+    "test:unit:ci": "node -e \"require('node:fs').mkdirSync('test-results', {recursive:true})\" && npm run test:unit -- --ci --coverage --json --outputFile=test-results/jest.json",
+    "test:security-tools": "node --test scripts/security/__tests__/audit.test.cjs scripts/security/__tests__/mobsf.test.cjs",
+    "security:audit": "node scripts/security/audit.cjs"
   },
   "private": true
 }

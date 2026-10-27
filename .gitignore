@@ -48,3 +48,8 @@ yarn-error.*
 # Informes de pruebas automatizadas
 coverage/
 test-results/
+
+# Auditorías y APK descargados para análisis
+security-results/
+apk-input/
+semgrep-*.json
