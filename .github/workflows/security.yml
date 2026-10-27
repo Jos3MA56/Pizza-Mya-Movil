@@ -25,7 +25,7 @@ jobs:
         with:
           persist-credentials: false
       - name: Validar reglas propias con casos positivos y negativos
-        run: semgrep --test --config .semgrep/semgrep.yml .semgrep/tests/
+        run: semgrep --test .semgrep/
       - name: Detectar exposición de datos y ejecución dinámica
         run: semgrep scan --config .semgrep/semgrep.yml --metrics off --error --strict --json --output semgrep-proyecto.json src/
       - name: Revisar reglas generales de seguridad
