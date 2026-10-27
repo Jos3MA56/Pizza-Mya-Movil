@@ -44,3 +44,7 @@ yarn-error.*
 
 # Verificación local de exportación
 .expo-export-check/
+
+# Informes de pruebas automatizadas
+coverage/
+test-results/

@@ -34,7 +34,10 @@
     "test:api": "node scripts/test-api.cjs",
     "test:unit": "jest --runInBand",
     "test:pos-client": "node scripts/test-pos-client.cjs",
-    "test:cocina-pos": "node scripts/test-cocina-pos.cjs"
+    "test:cocina-pos": "node scripts/test-cocina-pos.cjs",
+    "typecheck": "tsc --noEmit",
+    "test:ci": "npm run typecheck && npm run test:unit:ci && npm run test:patterns && npm run test:api && npm run test:offline && npm run test:pos-client && npm run test:cocina-pos",
+    "test:unit:ci": "node -e \"require('node:fs').mkdirSync('test-results', {recursive:true})\" && npm run test:unit -- --ci --coverage --json --outputFile=test-results/jest.json"
   },
   "private": true
 }
