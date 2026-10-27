@@ -33,7 +33,8 @@
     "test:patterns": "node scripts/test-patrones.cjs",
     "test:api": "node scripts/test-api.cjs",
     "test:unit": "jest --runInBand",
-    "test:pos-client": "node scripts/test-pos-client.cjs"
+    "test:pos-client": "node scripts/test-pos-client.cjs",
+    "test:cocina-pos": "node scripts/test-cocina-pos.cjs"
   },
   "private": true
 }
