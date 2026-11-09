@@ -1,0 +1,133 @@
+name: Compilar Android para release
+
+on:
+  pull_request:
+    branches: [main]
+    types: [closed]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  android:
+    if: >-
+      (github.event_name == 'pull_request' &&
+       github.event.pull_request.merged == true &&
+       github.event.pull_request.head.repo.full_name == github.repository &&
+       startsWith(github.event.pull_request.head.ref, 'release/')) ||
+      (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main')
+    name: Generar Android App Bundle
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    env:
+      CI: 'true'
+      EXPO_NO_TELEMETRY: '1'
+      ANDROID_PACKAGE_NAME: ${{ vars.ANDROID_PACKAGE_NAME || 'com.pizzamya.movil' }}
+      EXPO_PUBLIC_API_URL: ${{ vars.EXPO_PUBLIC_API_URL || 'https://pizza-mya-back.vercel.app' }}
+      EXPO_PUBLIC_API_HEALTH_PATH: ${{ vars.EXPO_PUBLIC_API_HEALTH_PATH || '/api/health' }}
+    steps:
+      - name: Obtener el commit integrado
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ github.event.pull_request.merge_commit_sha || github.sha }}
+          persist-credentials: false
+
+      - name: Preparar Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Preparar Java
+        uses: actions/setup-java@dd06d9cba3e5552c54d9f8ea23572deb30010f7c # v6.0.0
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Instalar SDK de Android de Expo 58
+        run: |
+          sdkmanager="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+          "$sdkmanager" --licenses < <(yes) > /dev/null
+          "$sdkmanager" --install 'platforms;android-37.0' 'build-tools;37.0.0' 'ndk;27.1.12297006'
+
+      - name: Instalar dependencias
+        run: npm ci
+
+      - name: Preparar la compilación nativa
+        run: |
+          node <<'NODE'
+          const fs = require('node:fs');
+          const app = JSON.parse(fs.readFileSync('app.json', 'utf8'));
+          const packageName = process.env.ANDROID_PACKAGE_NAME;
+          const versionCode = Number(process.env.GITHUB_RUN_NUMBER);
+          if (!/^[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*)+$/.test(packageName)) {
+            throw new Error('ANDROID_PACKAGE_NAME no es un identificador Android válido.');
+          }
+          if (!Number.isSafeInteger(versionCode) || versionCode < 1 || versionCode > 2100000000) {
+            throw new Error('El número de compilación de GitHub no sirve como versionCode.');
+          }
+          if (new URL(process.env.EXPO_PUBLIC_API_URL).protocol !== 'https:') {
+            throw new Error('EXPO_PUBLIC_API_URL debe ser una dirección HTTPS.');
+          }
+          app.expo.name = 'Pizza Mya';
+          app.expo.android = { ...app.expo.android, package: packageName, versionCode };
+          fs.writeFileSync('app.json', JSON.stringify(app, null, 2) + '\n');
+          NODE
+          node node_modules/expo/bin/cli prebuild --platform android --no-install --template ./node_modules/expo/template.tgz
+          node <<'NODE'
+          const fs = require('node:fs');
+          const file = 'android/app/build.gradle';
+          const gradle = fs.readFileSync(file, 'utf8');
+          // El proyecto generado por Expo configura una firma de depuración en release.
+          const debugRelease = /(\brelease\s*\{[ \t]*\r?\n(?:[ \t]*\/\/[^\r\n]*\r?\n)*)[ \t]*signingConfig[ \t]+signingConfigs\.debug[ \t]*\r?\n/;
+          if (!debugRelease.test(gradle)) {
+            throw new Error('No se encontró la configuración de firma esperada en Expo.');
+          }
+          fs.writeFileSync(file, gradle.replace(debugRelease, '$1'));
+          NODE
+
+      - name: Compilar el Android App Bundle
+        working-directory: android
+        run: bash ./gradlew :app:bundleRelease --no-daemon
+
+      - name: Firmar y preparar el archivo descargable
+        id: aab
+        env:
+          ANDROID_UPLOAD_KEYSTORE_BASE64: ${{ secrets.ANDROID_UPLOAD_KEYSTORE_BASE64 }}
+          ANDROID_UPLOAD_STORE_PASSWORD: ${{ secrets.ANDROID_UPLOAD_STORE_PASSWORD }}
+          ANDROID_UPLOAD_KEY_ALIAS: ${{ secrets.ANDROID_UPLOAD_KEY_ALIAS }}
+          ANDROID_UPLOAD_KEY_PASSWORD: ${{ secrets.ANDROID_UPLOAD_KEY_PASSWORD }}
+        run: |
+          bundle="android/app/build/outputs/bundle/release/app-release.aab"
+          test -s "$bundle"
+          tipo="sin-firma"
+          if [[ -n "$ANDROID_UPLOAD_KEYSTORE_BASE64$ANDROID_UPLOAD_STORE_PASSWORD$ANDROID_UPLOAD_KEY_ALIAS$ANDROID_UPLOAD_KEY_PASSWORD" ]]; then
+            : "${ANDROID_UPLOAD_KEYSTORE_BASE64:?Falta el secreto del keystore}"
+            : "${ANDROID_UPLOAD_STORE_PASSWORD:?Falta la contraseña del keystore}"
+            : "${ANDROID_UPLOAD_KEY_ALIAS:?Falta el alias de la clave}"
+            : "${ANDROID_UPLOAD_KEY_PASSWORD:?Falta la contraseña de la clave}"
+            keystore="$(mktemp "$RUNNER_TEMP/pizza-mya-upload.XXXXXX")"
+            trap 'rm -f -- "$keystore"' EXIT
+            printf '%s' "$ANDROID_UPLOAD_KEYSTORE_BASE64" | base64 --decode > "$keystore"
+            jarsigner -keystore "$keystore" -storepass:env ANDROID_UPLOAD_STORE_PASSWORD \
+              -keypass:env ANDROID_UPLOAD_KEY_PASSWORD "$bundle" "$ANDROID_UPLOAD_KEY_ALIAS"
+            jarsigner -verify -strict -keystore "$keystore" -storepass:env ANDROID_UPLOAD_STORE_PASSWORD \
+              "$bundle" "$ANDROID_UPLOAD_KEY_ALIAS"
+            tipo="firmado"
+          else
+            echo "::notice::El AAB quedó sin firma. Configura los cuatro secretos de firma para generar un archivo que se pueda subir a Play Console."
+          fi
+          archivo="$RUNNER_TEMP/pizza-mya-android-${GITHUB_RUN_NUMBER}-$tipo.aab"
+          cp -- "$bundle" "$archivo"
+          echo "tipo=$tipo" >> "$GITHUB_OUTPUT"
+          echo "archivo=$archivo" >> "$GITHUB_OUTPUT"
+          echo "Android App Bundle: $tipo" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Guardar el AAB en GitHub Actions
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: pizza-mya-android-${{ github.run_number }}-${{ steps.aab.outputs.tipo }}
+          path: ${{ steps.aab.outputs.archivo }}
+          if-no-files-found: error
+          retention-days: 14
