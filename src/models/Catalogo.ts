@@ -22,7 +22,10 @@ export interface ProductoCatalogo {
   tamanios: TamanioCatalogo[];
 }
 
+export interface OrillaCatalogo { id: string; nombre: string; precios: { tamanioId: string; precio: number }[] }
+
 export interface Catalogo {
+  orillas?: OrillaCatalogo[];
   categorias: CategoriaCatalogo[];
   productos: ProductoCatalogo[];
 }

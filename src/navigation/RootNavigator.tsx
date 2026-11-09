@@ -1,3 +1,8 @@
+import {PedidosScreen} from '../views/screens/PedidosScreen';
+import {SeguimientoCompartidoScreen} from '../views/screens/SeguimientoCompartidoScreen';
+import {cuentasCompartidas} from '../repositories/CompartidoPedidoRepository';
+import {PedidoRepositorySingleton} from '../services/PedidoRepositorySingleton';
+import {PerfilScreen} from '../views/screens/PerfilScreen';
 import { SeguimientoScreen } from '../views/screens/SeguimientoScreen';
 import { establecerActorLocal } from '../services/SesionLocal';
 
@@ -23,7 +28,9 @@ import { SeleccionMesaScreen } from '../views/screens/SeleccionMesaScreen';
 import { PedidoResumenScreen } from '../views/screens/PedidoResumenScreen';
 
 export type RootStackParamList = {
+  Pedidos: undefined;
   Login: undefined;
+  Perfil: undefined;
   Seguimiento: { pedidoId: string };
   MeseroHome: undefined;
   CocinaHome: undefined;
@@ -39,6 +46,8 @@ export type RootStackParamList = {
   };
 };
 
+PedidoRepositorySingleton.obtenerInstancia().usarRepositorio(cuentasCompartidas);
+
 const Stack =
   createNativeStackNavigator<RootStackParamList>();
 
@@ -51,9 +60,12 @@ type TipoPedidoRouteProps =
 function TipoPedidoRoute({
   navigation,
 }: TipoPedidoRouteProps) {
-  const continuar = (tipo: TipoPedido) => {
+  const continuar = async (tipo: TipoPedido,nombreCliente?:string,requestId?:string) => {
     if (tipo === 'mesa') {
       navigation.navigate('SeleccionMesa');
+    }else if(nombreCliente&&requestId){
+      const pedido=await cuentasCompartidas.crearParaLlevar(nombreCliente,requestId);
+      navigation.replace('PedidoResumen',{pedidoId:pedido.id});
     }
   };
 
@@ -138,8 +150,12 @@ function CatalogoRoute({ navigation, route }: CatalogoRouteProps) {
 }
 
 function SeguimientoRoute({ navigation, route }: NativeStackScreenProps<RootStackParamList, 'Seguimiento'>) {
+  if(route.params.pedidoId.startsWith('cuenta-'))return <SeguimientoCompartidoScreen pedidoId={route.params.pedidoId} onRegresar={()=>navigation.popTo('PedidoResumen',{pedidoId:route.params.pedidoId})} onMenu={()=>navigation.popTo('MeseroHome')}/>;
   return <SeguimientoScreen pedidoId={route.params.pedidoId} onRegresar={() => navigation.goBack()} />;
 }
+
+function PedidosRoute({navigation}:NativeStackScreenProps<RootStackParamList,'Pedidos'>){return <PedidosScreen onVolver={()=>navigation.goBack()} onAbrir={pedidoId=>navigation.navigate('PedidoResumen',{pedidoId})}/>;}
+function PerfilRoute({navigation}:NativeStackScreenProps<RootStackParamList,'Perfil'>){return <PerfilScreen onVolver={()=>navigation.goBack()}/>;}
 
 export function RootNavigator() {
   const { usuario } = useAuth();
@@ -161,6 +177,8 @@ export function RootNavigator() {
               name="MeseroHome"
               component={MeseroHomeScreen}
             />
+            <Stack.Screen name="Pedidos" component={PedidosRoute}/>
+            <Stack.Screen name="Perfil" component={PerfilRoute}/>
             <Stack.Screen name="Seguimiento" component={SeguimientoRoute} />
             <Stack.Screen
               name="Catalogo"
@@ -184,10 +202,10 @@ export function RootNavigator() {
             />
           </>
         ) : usuario.rol === 'cocina' ? (
-          <Stack.Screen
-            name="CocinaHome"
-            component={CocinaHomeScreen}
-          />
+          <>
+          <Stack.Screen name="CocinaHome" component={CocinaHomeScreen}/>
+          <Stack.Screen name="Perfil" component={PerfilRoute}/>
+          </>
         ) : (
           <Stack.Screen
             name="AccesoNoAutorizado"

@@ -6,6 +6,7 @@ const CLAVE_CONFIG = 'pizza_mya_pos_lan_config_v1';
 export interface ConfiguracionPOS {
   urlBase: string;
   token: string;
+  vinculadaEn?: string;
 }
 
 function validarConfiguracion(config: ConfiguracionPOS): void {
@@ -32,6 +33,7 @@ export async function guardarConfiguracionPOS(
     CLAVE_CONFIG,
     JSON.stringify(config)
   );
+  notificar();
 }
 
 // Recupera la configuración al iniciar la aplicación.
@@ -56,4 +58,9 @@ export async function obtenerConfiguracionPOS():
 export async function eliminarConfiguracionPOS():
   Promise<void> {
   await SecureStore.deleteItemAsync(CLAVE_CONFIG);
+  notificar();
 }
+
+const oyentes=new Set<()=>void>();
+export function observarConfiguracionPOS(fn:()=>void){oyentes.add(fn);return ()=>{oyentes.delete(fn);};}
+function notificar(){for(const fn of oyentes)fn();}

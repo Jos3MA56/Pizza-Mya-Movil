@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, useRef } from "react";
 
 import type { Pedido, ProductoComanda } from "../models/Pedido";
 
@@ -12,12 +12,14 @@ const repositorioPorDefecto =
 export function useComandasViewModel(
   repositorio: PedidoRepository = repositorioPorDefecto,
 ) {
+  const ocupado=useRef(false);
   const [comandas, setComandas] = useState<Pedido[]>([]);
   const [cargando, setCargando] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const actualizarComandas = useCallback(async () => {
-    setCargando(true);
+  const actualizarComandas = useCallback(async (silencioso=false) => {
+    if(ocupado.current)return;ocupado.current=true;
+    if(!silencioso)setCargando(true);
     setError(null);
 
     try {
@@ -30,12 +32,15 @@ export function useComandasViewModel(
           : "No se pudieron consultar las comandas.",
       );
     } finally {
-      setCargando(false);
+      ocupado.current=false;
+      if(!silencioso)setCargando(false);
     }
   }, [repositorio]);
 
   useEffect(() => {
     void actualizarComandas();
+    const timer=setInterval(()=>void actualizarComandas(true),2000);
+    return()=>clearInterval(timer);
   }, [actualizarComandas]);
 
   const abrirMesa = useCallback(

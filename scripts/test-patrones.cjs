@@ -114,5 +114,9 @@ test("Singleton: diferentes accesos comparten el mismo repositorio", async () =>
 
   // La persistencia de producción requiere sesión y SQLite nativo;
   // se verifica sobre SQLite real en test:offline.
-  assert.equal(repo1.constructor.name, 'SQLitePedidoRepository');
+  const delegado=new InMemoryPedidoRepository();
+  primera.usarRepositorio(delegado);
+  await repo1.guardar(ejemplo);
+  assert.deepEqual(await repo2.obtenerPorId(ejemplo.id),ejemplo);
+  assert.strictEqual(repo1,primera.obtenerRepositorio());
 });

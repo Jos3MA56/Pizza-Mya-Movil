@@ -1,28 +1,177 @@
-import React from 'react';
-import {ActivityIndicator,Pressable,ScrollView,StyleSheet,Text,View,RefreshControl} from 'react-native';
-import type {CocinaViewModel} from '../../viewmodels/useCocinaViewModel';
-export const COCINA_COLORS={background:'#FFF8F3',white:'#FFFFFF',orange:'#FF7000',red:'#991F19',text:'#35251F',muted:'#85766E',border:'#F0E3DA',green:'#227548'};
-const C=COCINA_COLORS;
-const estados=[['pendiente','Pendientes'],['en_preparacion','En preparación'],['listo','Listos']] as const;
-export function CocinaEstacionScreen({vm,titulo}:{vm:CocinaViewModel;titulo:string}){
- return <ScrollView style={styles.scroll} contentContainerStyle={styles.content} refreshControl={<RefreshControl refreshing={vm.cargando} onRefresh={()=>void vm.cargar()} tintColor={C.red}/> }>
-  <View style={styles.heading}><View><Text style={styles.eyebrow}>HOJA DE COCINA</Text><Text accessibilityRole="header" style={styles.title}>{titulo}</Text></View><Pressable accessibilityRole="button" accessibilityLabel="Actualizar pedidos" onPress={()=>void vm.cargar()} style={styles.refresh}><Text style={styles.refreshText}>Actualizar</Text></Pressable></View>
-  <Text style={styles.description}>Pedidos por mesa. Las cantidades y observaciones se conservan tal como fueron recibidas.</Text>
-  <View style={styles.filters}>{estados.map(([estado,label])=><Pressable key={estado} accessibilityRole="button" accessibilityState={{selected:vm.filtro===estado}} onPress={()=>vm.setFiltro(estado)} style={[styles.filter,vm.filtro===estado&&styles.filterActive]}><Text style={[styles.filterText,vm.filtro===estado&&styles.filterTextActive]}>{label} ({vm.contadores[estado]})</Text></Pressable>)}</View>
-  {!!vm.error&&<View style={styles.alert}><Text accessibilityRole="alert" style={styles.alertText}>{vm.error}</Text></View>}
-  {!!vm.sinAsignar.length&&<Text style={styles.description}>Fuera de estas hojas: {vm.sinAsignar.join(', ')}. Esos productos conservan su registro en el POS.</Text>}
-  {vm.cargando&&<ActivityIndicator color={C.red} accessibilityLabel="Cargando cocina"/>}
-  {!vm.cargando&&!vm.tickets.length&&<View style={styles.empty}><Text style={styles.emptyTitle}>{vm.conectado?'Sin pedidos en este estado':'Esperando conexión con el POS'}</Text><Text style={styles.description}>{vm.conectado?`Los pedidos de ${titulo.toLowerCase()} aparecerán aquí automáticamente.`:'Verifica la dirección y el token en Conexión POS.'}</Text></View>}
-  {vm.tickets.map(t=><View key={t.id} style={styles.card} testID={`ticket-${t.id}`}>
-   <View style={styles.cardHeader}><View style={styles.table}><Text style={styles.tableText}>M{t.mesa}</Text></View><View style={styles.reference}><Text style={styles.folio}>{t.folio}</Text><Text style={styles.meta}>Hora: {new Date(t.fecha).toLocaleTimeString('es-MX',{hour:'2-digit',minute:'2-digit'})}</Text></View><Text style={[styles.badge,t.estadoEstacion==='listo'&&styles.ready]}>{t.estadoEstacion==='en_preparacion'?'Preparando':t.estadoEstacion==='listo'?'Listo':'Pendiente'}</Text></View>
-   <Text selectable style={styles.waiter}>Mesero: {t.meseroId}</Text>
-   {t.productos.map(p=><View key={p.lineaId} style={styles.line}><View style={styles.quantity}><Text style={styles.quantityText}>{p.cantidad}</Text></View><View style={styles.product}><Text style={styles.productName}>{p.nombre}</Text><Text style={styles.size}>{p.tamanio}</Text>{!!p.observaciones&&<Text style={styles.lineNote}>Nota: {p.observaciones}</Text>}</View></View>)}
-   {!!t.observaciones&&<View style={styles.notes}><Text style={styles.notesTitle}>Observaciones generales</Text><Text style={styles.notesText}>{t.observaciones}</Text></View>}
-   {t.estadoEstacion!=='listo'?<Pressable accessibilityRole="button" disabled={!vm.conectado||vm.actualizando!==null} onPress={()=>void vm.avanzar(t)} style={[styles.action,(!vm.conectado||vm.actualizando!==null)&&styles.disabled]}>{vm.actualizando===t.id?<ActivityIndicator color={C.white}/>:<Text style={styles.actionText}>{t.estadoEstacion==='pendiente'?'Iniciar preparación':`Marcar ${titulo.toLowerCase()} listos`}</Text>}</Pressable>:<Text style={styles.completed}>Preparación terminada</Text>}
-  </View>)}
-  <Text style={styles.footnote}>Los cambios se aplican solo a {titulo.toLowerCase()}. Actualización automática cada 3 segundos.</Text>
- </ScrollView>;
+import React, { useEffect, useRef, useState } from 'react';
+import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import type { EstadoCocinaPOS, RenglonCocina } from '../../services/CocinaPOSService';
+import type { CocinaViewModel } from '../../viewmodels/useCocinaViewModel';
+
+export const COCINA_COLORS = {
+  background: '#FFF8F3', white: '#FFFFFF', red: '#991F19', text: '#35251F',
+  muted: '#6D5A51', border: '#E9DBD0', green: '#246243',
+};
+
+const C = COCINA_COLORS;
+const ESTADOS: Record<EstadoCocinaPOS, { nombre: string; fondo: string; borde: string; texto: string }> = {
+  pendiente: { nombre: 'Entrada', fondo: C.white, borde: '#BEAAA0', texto: C.muted },
+  en_preparacion: { nombre: 'En preparación', fondo: '#FFE3C7', borde: '#D76613', texto: '#7A380E' },
+  listo: { nombre: 'Lista', fondo: '#DDF2E3', borde: '#35945B', texto: C.green },
+};
+const DOBLE_TOQUE_MS = 400;
+
+export function RenglonCocinaView({ renglon, vm, historial = false, numero }: {
+  renglon: RenglonCocina;
+  vm: CocinaViewModel;
+  historial?: boolean;
+  numero?: number;
+}) {
+  const [marcado, setMarcado] = useState(false);
+  const ultimo = useRef<{ fecha: number; version: number } | null>(null);
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => () => {
+    if (timer.current !== null) clearTimeout(timer.current);
+  }, []);
+
+  const { producto, ticket, estado, version } = renglon;
+  const apariencia = ESTADOS[estado];
+  const finalizado = historial || estado === 'listo';
+  const bloqueado = !vm.conectado || vm.actualizando !== null;
+  const destino = ticket.tipoPedido === 'para_llevar' ? `Para llevar · ${ticket.nombreCliente}` : `Mesa ${ticket.mesa}`;
+  const siguiente = estado === 'pendiente' ? 'Pasar a preparación' : 'Marcar como lista';
+  const hora = new Date(producto.recibidaEn ?? ticket.fecha).toLocaleTimeString('es-MX', {
+    hour: '2-digit', minute: '2-digit',
+  });
+
+  function limpiarToque() {
+    if (timer.current !== null) clearTimeout(timer.current);
+    timer.current = null;
+    ultimo.current = null;
+    setMarcado(false);
+  }
+
+  function avanzar() {
+    limpiarToque();
+    if (!bloqueado && !finalizado) void vm.avanzar(renglon);
+  }
+
+  function tocar() {
+    if (bloqueado || finalizado) return;
+    const ahora = Date.now();
+    const anterior = ultimo.current;
+    if (anterior?.version === version && ahora - anterior.fecha <= DOBLE_TOQUE_MS) {
+      avanzar();
+      return;
+    }
+    if (timer.current !== null) clearTimeout(timer.current);
+    ultimo.current = { fecha: ahora, version };
+    setMarcado(true);
+    timer.current = setTimeout(limpiarToque, DOBLE_TOQUE_MS);
+  }
+
+  const contenido = (
+    <>
+      {numero !== undefined && <Text style={[styles.number, { color: apariencia.texto }]}>{numero}.</Text>}
+      <View style={styles.product}>
+        <View style={styles.productHeader}>
+          <Text style={styles.productName}>{producto.cantidad > 1 ? `${producto.cantidad} × ` : ''}{producto.nombre}</Text>
+          <Text style={[styles.badge, { color: apariencia.texto }]}>{apariencia.nombre}</Text>
+        </View>
+        <Text style={styles.detail}>{[producto.tamanio, destino].filter(Boolean).join(' · ')}</Text>
+        {!!producto.orillaNombre && <Text style={styles.note}>Orilla: {producto.orillaNombre}</Text>}
+        {!!producto.observaciones && <Text style={styles.note}>Nota: {producto.observaciones}</Text>}
+        {!!ticket.observaciones && <Text style={styles.note}>Comanda: {ticket.observaciones}</Text>}
+        <Text style={styles.meta}>{ticket.folio} · {hora}</Text>
+        {historial && <Text style={styles.meta}>{producto.entregadaEn ? 'Lista · ' + new Date(producto.entregadaEn).toLocaleString('es-MX') : 'Lista · registro anterior'}</Text>}
+      </View>
+      {vm.actualizando === renglon.clave && <ActivityIndicator accessibilityLabel="Actualizando estado" color={C.red} />}
+    </>
+  );
+  const estilo = [styles.row, { backgroundColor: apariencia.fondo, borderLeftColor: apariencia.borde }];
+
+  if (finalizado) return <View style={estilo}>{contenido}</View>;
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={`${producto.cantidad} por ${producto.nombre}, ${destino}. ${apariencia.nombre}.`}
+      accessibilityHint="Toca dos veces el renglón para avanzar."
+      accessibilityState={{ disabled: bloqueado, busy: vm.actualizando === renglon.clave }}
+      accessibilityActions={[{ name: 'activate', label: siguiente }]}
+      onAccessibilityAction={e => { if (e.nativeEvent.actionName === 'activate') avanzar(); }}
+      disabled={bloqueado}
+      onPress={tocar}
+      style={[...estilo, marcado && styles.marked]}
+    >
+      {contenido}
+    </Pressable>
+  );
 }
-const styles=StyleSheet.create({
- scroll:{flex:1},content:{padding:20,gap:16,paddingBottom:30},heading:{flexDirection:'row',alignItems:'center',justifyContent:'space-between',gap:8},eyebrow:{fontSize:11,fontWeight:'800',letterSpacing:1.4,color:C.orange},title:{fontSize:28,fontWeight:'800',color:C.text,marginTop:3},description:{color:C.muted,fontSize:13,lineHeight:20},refresh:{padding:10,borderRadius:12,borderWidth:1,borderColor:C.border,backgroundColor:C.white},refreshText:{color:C.red,fontWeight:'700',fontSize:12},filters:{flexDirection:'row',gap:6,flexWrap:'wrap'},filter:{paddingVertical:10,paddingHorizontal:11,borderRadius:20,borderWidth:1,borderColor:C.border,backgroundColor:C.white},filterActive:{backgroundColor:C.red,borderColor:C.red},filterText:{fontSize:12,fontWeight:'700',color:C.muted},filterTextActive:{color:C.white},alert:{backgroundColor:'#FBE9E7',borderRadius:12,padding:14},alertText:{color:C.red,lineHeight:20},empty:{padding:24,backgroundColor:C.white,borderRadius:18,borderWidth:1,borderColor:C.border,gap:8},emptyTitle:{fontSize:17,fontWeight:'700',color:C.text},card:{backgroundColor:C.white,borderRadius:20,borderWidth:1,borderColor:C.border,padding:16,gap:12},cardHeader:{flexDirection:'row',alignItems:'center',gap:10},table:{width:45,height:45,borderRadius:13,backgroundColor:'#FFF0E3',alignItems:'center',justifyContent:'center'},tableText:{fontSize:19,fontWeight:'800',color:C.red},reference:{flex:1},folio:{color:C.text,fontWeight:'800',fontSize:16},meta:{fontSize:12,color:C.muted,marginTop:4},badge:{fontSize:10,fontWeight:'700',color:C.red,backgroundColor:'#FFF0E3',padding:7,borderRadius:10},ready:{backgroundColor:'#E7F5EC',color:C.green},waiter:{fontSize:11,color:C.muted},line:{flexDirection:'row',gap:12,paddingVertical:10,borderTopWidth:1,borderTopColor:C.border},quantity:{width:34,height:34,borderRadius:10,backgroundColor:'#FFF0E3',alignItems:'center',justifyContent:'center'},quantityText:{fontSize:17,fontWeight:'800',color:C.orange},product:{flex:1,gap:4},productName:{fontSize:16,fontWeight:'700',color:C.text},size:{fontSize:13,color:C.muted},lineNote:{fontSize:14,color:C.red,lineHeight:20},notes:{padding:12,backgroundColor:'#FFF8F3',borderRadius:12,gap:4},notesTitle:{fontSize:12,fontWeight:'700',color:C.text},notesText:{fontSize:14,color:C.text,lineHeight:20},action:{minHeight:46,padding:13,backgroundColor:C.red,borderRadius:13,alignItems:'center',justifyContent:'center'},actionText:{color:C.white,fontWeight:'700',fontSize:14},disabled:{opacity:0.45},completed:{color:C.green,fontWeight:'700',textAlign:'center',padding:8},footnote:{fontSize:11,color:C.muted,lineHeight:17}
+
+export function CocinaEstacionScreen({ vm, titulo, onMenu, onVolver }: { vm: CocinaViewModel; titulo: string; onMenu?: () => void; onVolver?: () => void }) {
+  return (
+    <View style={styles.screen}>
+      <View style={styles.heading}>
+        <View style={styles.headerText}>
+          {
+            onVolver ? <Pressable accessibilityRole="button" onPress={onVolver} hitSlop={8} style={styles.backToStations}>
+              <Ionicons name="chevron-back" size={16} color={C.red} />
+              <Text style={styles.linkText}>Estaciones</Text>
+            </Pressable> : <Text style={styles.kicker}>COCINA</Text>
+          }
+          <Text accessibilityRole="header" style={styles.title}>{titulo}</Text>
+        </View>
+        {onMenu && <Pressable accessibilityRole="button" accessibilityLabel="Menú de cocina" onPress={onMenu} style={styles.menuButton}>
+          <Ionicons name="ellipsis-horizontal" size={24} color={C.red} />
+        </Pressable>}
+      </View>
+      <View style={styles.legend}>
+        {Object.values(ESTADOS).map(estado => <View key={estado.nombre} style={styles.legendItem}>
+          <View style={[styles.swatch, { backgroundColor: estado.fondo, borderColor: estado.borde }]} />
+          <Text style={styles.legendText}>{estado.nombre}</Text>
+        </View>)}
+      </View>
+      <Text style={styles.hint}>Doble toque para avanzar al siguiente estado.</Text>
+      {!!vm.error && <Text accessibilityRole="alert" style={styles.error}>{vm.error}</Text>}
+      <FlatList
+        data={vm.renglones}
+        keyExtractor={r => r.clave}
+        renderItem={({ item, index }) => <RenglonCocinaView renglon={item} vm={vm} numero={index + 1} />}
+        style={styles.list}
+        contentContainerStyle={styles.listContent}
+        refreshing={vm.cargando}
+        onRefresh={() => void vm.cargar()}
+        ListEmptyComponent={vm.cargando ? <ActivityIndicator style={styles.empty} color={C.red} /> : (
+          <Text style={styles.empty}>{vm.conectado ? 'Los productos aparecerán aquí al enviar una comanda.' : 'Esperando conexión con el POS'}</Text>
+        )}
+      />
+    </View>
+  );
+}
+
+export const styles = StyleSheet.create({
+  screen: { flex: 1, paddingHorizontal: 16, paddingTop: 8, gap: 10 },
+  heading: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 10 },
+  backToStations: { alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', gap: 3, minHeight: 32 },
+  linkText: { fontSize: 13, fontWeight: '700', color: C.red },
+  headerText: { flex: 1, gap: 2 },
+  kicker: { fontSize: 11, letterSpacing: 1.6, fontWeight: '800', color: C.red },
+  title: { fontSize: 28, fontWeight: '800', color: C.text },
+  link: { color: C.red, fontWeight: '700', padding: 8 },
+  hint: { fontSize: 13, color: C.muted },
+  menuButton: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center', borderRadius: 14, backgroundColor: '#F7E9DE' },
+  legend: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
+  legendItem: { flexDirection: 'row', alignItems: 'center', gap: 5 },
+  legendText: { color: C.text, fontSize: 12, fontWeight: '600' },
+  swatch: { width: 13, height: 13, borderRadius: 3, borderWidth: 1 },
+  list: { flex: 1, borderRadius: 14, borderWidth: 1, borderColor: C.border, backgroundColor: C.white },
+  listContent: { paddingBottom: 12 },
+  row: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, minHeight: 68, paddingHorizontal: 12, paddingVertical: 10, borderLeftWidth: 4, borderBottomWidth: 1, borderBottomColor: C.border },
+  marked: { borderLeftColor: C.red },
+  number: { minWidth: 19, fontSize: 13, lineHeight: 21, fontWeight: '800', fontVariant: ['tabular-nums'] },
+  product: { flex: 1, gap: 4 },
+  productHeader: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', columnGap: 10, rowGap: 3 },
+  productName: { flexShrink: 1, fontSize: 16, lineHeight: 21, fontWeight: '800', color: C.text },
+  badge: { fontSize: 12, fontWeight: '800' },
+  detail: { fontSize: 13, color: C.text },
+  meta: { fontSize: 11, color: C.muted },
+  note: { fontSize: 13, fontWeight: '600', color: C.red },
+  error: { padding: 10, color: C.red, backgroundColor: '#FBE9E7', borderRadius: 8 },
+  empty: { padding: 20, color: C.muted, fontSize: 13 },
 });

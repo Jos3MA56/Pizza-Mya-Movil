@@ -2,7 +2,6 @@
 import React, { useEffect, useCallback } from 'react';
 import {
   View,
-  TextInput,
   AppState,
   Text,
   Pressable,
@@ -72,18 +71,7 @@ export function MeseroHomeScreen() {
     );
   };
 
-  const {
-    urlBase,
-    setUrlBase,
-    token,
-    setToken,
-    configurada,
-    procesando,
-    mensaje,
-    guardarYVerificar,
-    comprobarConexion,
-    desvincularPOS,
-  } = usePosLanConfigViewModel();
+  const {configurada,conectado}=usePosLanConfigViewModel();
 
   useEffect(() => {
     if (!usuario?.id || usuario.rol !== 'mesero') {
@@ -92,7 +80,7 @@ export function MeseroHomeScreen() {
 
     // La configuracion LAN habilita la cola real; el transporte demo queda separado.
     const habilitada =
-      configurada;
+      configurada && conectado;
 
     if (!habilitada) {
       console.log(
@@ -135,13 +123,12 @@ export function MeseroHomeScreen() {
       suscripcion.remove();
       procesadorAutomaticoPOS.detener();
     };
-  }, [usuario?.id, usuario?.rol, configurada]);
+  }, [usuario?.id, usuario?.rol, configurada, conectado]);
 
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar
         barStyle="dark-content"
-        backgroundColor={COLORS.background}
       />
 
       {/* ENCABEZADO */}
@@ -211,7 +198,7 @@ export function MeseroHomeScreen() {
 
           <Pressable
             style={[styles.actionCard, styles.redCard]}
-            onPress={() => abrirProximamente('Pedidos activos')}
+            onPress={() => navigation.navigate('Pedidos')}
             accessibilityRole="button"
           >
             <View style={styles.actionIcon}>
@@ -240,7 +227,7 @@ export function MeseroHomeScreen() {
 
           <View style={styles.indicator}>
             <Text style={styles.indicatorText}>
-              ↻ Sin verificación
+              {conectado?'POS conectado':configurada?'Sin conexi\u00f3n':'Vincular en Perfil'}
             </Text>
           </View>
 
@@ -251,88 +238,7 @@ export function MeseroHomeScreen() {
           </View>
         </View>
 
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>
-            Conexión con POS Electron
-          </Text>
 
-          <Text style={styles.info}>
-            {mensaje}
-          </Text>
-
-          {!configurada ? (
-            <>
-              <Text style={styles.label}>
-                Dirección del POS
-              </Text>
-
-              <TextInput
-                style={styles.input}
-                value={urlBase}
-                onChangeText={setUrlBase}
-                autoCapitalize="none"
-                autoCorrect={false}
-                placeholder="http://192.168.1.78:3101"
-              />
-
-              <Text style={styles.label}>
-                Token LAN de pruebas
-              </Text>
-
-              <TextInput
-                style={styles.input}
-                value={token}
-                onChangeText={setToken}
-                secureTextEntry
-                autoCapitalize="none"
-                autoCorrect={false}
-                placeholder="Token de 64 caracteres"
-              />
-
-              <Pressable
-                style={[
-                  styles.button,
-                  procesando && styles.disabled,
-                ]}
-                disabled={procesando}
-                onPress={() => void guardarYVerificar()}
-              >
-                <Text style={styles.buttonText}>
-                  Verificar y guardar conexión
-                </Text>
-              </Pressable>
-            </>
-          ) : (
-            <>
-              <Text style={styles.label}>
-                POS configurado: {urlBase}
-              </Text>
-
-              <Pressable
-                style={[
-                  styles.button,
-                  procesando && styles.disabled,
-                ]}
-                disabled={procesando}
-                onPress={() => void comprobarConexion()}
-              >
-                <Text style={styles.buttonText}>
-                  Comprobar conexión
-                </Text>
-              </Pressable>
-
-              <Pressable
-                style={styles.secondaryButton}
-                disabled={procesando}
-                onPress={() => void desvincularPOS()}
-              >
-                <Text style={styles.secondaryText}>
-                  Desvincular dispositivo
-                </Text>
-              </Pressable>
-            </>
-          )}
-        </View>
 
         {/* ACTIVIDAD RECIENTE */}
         <View style={styles.sectionHeader}>
@@ -372,14 +278,16 @@ export function MeseroHomeScreen() {
             </Text>
           </View>
         ) : (
-          comandas.slice(0, 4).map((pedido) => (
-            <View
+          comandas.map((pedido) => (
+            <Pressable
+              accessibilityRole="button"
+              onPress={()=>navigation.navigate('PedidoResumen',{pedidoId:pedido.id})}
               key={pedido.id}
               style={styles.orderCard}
             >
               <View style={styles.tableBadge}>
                 <Text style={styles.tableText}>
-                  {pedido.mesaId !== undefined
+                  {pedido.tipoPedido==='para_llevar'?'🛍️':pedido.mesaId !== undefined
                     ? `M${pedido.mesaId}`
                     : '—'}
                 </Text>
@@ -390,7 +298,7 @@ export function MeseroHomeScreen() {
                   style={styles.orderTitle}
                   numberOfLines={1}
                 >
-                  Pedido {pedido.folio ?? pedido.id}
+                  {pedido.tipoPedido==='para_llevar'?'Para llevar · '+pedido.nombreCliente:'Pedido '+(pedido.folio??pedido.id)}
                 </Text>
 
                 <Text
@@ -406,13 +314,13 @@ export function MeseroHomeScreen() {
               </View>
 
               <Text style={styles.orderStatus}>
-                {pedido.estado === 'borrador'
+                {pedido.compartida?'Compartida':pedido.estado === 'borrador'
                   ? 'Borrador'
                   : pedido.estado === 'enviado'
                     ? 'Enviado*'
                     : 'Cancelado'}
               </Text>
-            </View>
+            </Pressable>
           ))
         )}
 
@@ -444,7 +352,7 @@ export function MeseroHomeScreen() {
 
         <Pressable
           style={styles.navItem}
-          onPress={() => abrirProximamente('Pedidos')}
+          onPress={() => navigation.navigate('Pedidos')}
         >
           <Text style={styles.navIcon}>▤</Text>
           <Text style={styles.navLabel}>Pedidos</Text>
@@ -452,22 +360,7 @@ export function MeseroHomeScreen() {
 
         <Pressable
           style={styles.navItem}
-          onPress={() =>
-            Alert.alert(
-              'Perfil',
-              `Sesion: ${usuario?.nombre ?? 'Mesero'}\nID para autorizar en POS: ${usuario?.id ?? ''}`,
-              [
-                { text: 'Volver', style: 'cancel' },
-                {
-                  text: 'Cerrar sesión',
-                  onPress: () => {
-                    procesadorAutomaticoPOS.detener();
-                    void cerrarSesion();
-                  },
-                },
-              ]
-            )
-          }
+          onPress={() => navigation.navigate('Perfil')}
         >
           <Text style={styles.navIcon}>♙</Text>
           <Text style={styles.navLabel}>Perfil</Text>

@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 
 import {
   guardarConfiguracionPOS,
+  observarConfiguracionPOS,
   obtenerConfiguracionPOS,
   eliminarConfiguracionPOS,
   type ConfiguracionPOS,
@@ -64,6 +65,7 @@ async function verificarConexion(
 export function usePosLanConfigViewModel() {
   const [urlBase, setUrlBase] = useState(URL_INICIAL);
   const [token, setToken] = useState('');
+  const [conectado,setConectado]=useState(false);
   const [configurada, setConfigurada] = useState(false);
   const [procesando, setProcesando] = useState(false);
   const [mensaje, setMensaje] = useState(
@@ -71,33 +73,20 @@ export function usePosLanConfigViewModel() {
   );
 
   useEffect(() => {
-    let activo = true;
-
-    async function cargar() {
-      try {
-        const config = await obtenerConfiguracionPOS();
-
-        if (!activo) return;
-
-        if (config) {
-          setUrlBase(config.urlBase);
-          setConfigurada(true);
-          setMensaje('POS configurado. Verifica la conexión.');
-        } else {
-          setMensaje('POS sin configurar.');
-        }
-      } catch {
-        if (activo) {
-          setMensaje('No se pudo cargar la configuración.');
-        }
-      }
+    let activo=true,comprobando=false;
+    async function cargar(){
+      if(comprobando)return;comprobando=true;
+      try{const config=await obtenerConfiguracionPOS();if(!activo)return;
+        setConfigurada(Boolean(config));
+        if(!config){setConectado(false);setMensaje('POS sin vincular. Escanea el QR desde Perfil.');return;}
+        setUrlBase(config.urlBase);
+        await verificarConexion(config);
+        if(activo){setConectado(true);setMensaje('POS conectado. Reconexión automática activa.');}
+      }catch{if(activo){setConectado(false);setMensaje('Sin conexión. Se conserva la vinculación y los pedidos pendientes.');}}
+      finally{comprobando=false;}
     }
-
-    void cargar();
-
-    return () => {
-      activo = false;
-    };
+    void cargar();const timer=setInterval(()=>void cargar(),15000),dejar=observarConfiguracionPOS(()=>void cargar());
+    return()=>{activo=false;clearInterval(timer);dejar();};
   }, []);
 
   async function guardarYVerificar() {
@@ -115,6 +104,7 @@ export function usePosLanConfigViewModel() {
       await verificarConexion(config);
       await guardarConfiguracionPOS(config);
 
+      setConectado(true);
       setConfigurada(true);
       setToken('');
       setMensaje('POS conectado y configuración guardada.');
@@ -165,6 +155,7 @@ export function usePosLanConfigViewModel() {
       await eliminarConfiguracionPOS();
 
       setToken('');
+      setConectado(false);
       setConfigurada(false);
       setMensaje('Dispositivo desvinculado del POS.');
     } catch {
@@ -179,6 +170,7 @@ export function usePosLanConfigViewModel() {
     setUrlBase,
     token,
     setToken,
+    conectado,
     configurada,
     procesando,
     mensaje,

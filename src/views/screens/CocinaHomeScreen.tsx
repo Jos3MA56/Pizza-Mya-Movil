@@ -1,30 +1,89 @@
-import React,{useState} from 'react';
-import {View,Text,Pressable,Image,StyleSheet,StatusBar,ScrollView,TextInput,ActivityIndicator} from 'react-native';
-import {SafeAreaView} from 'react-native-safe-area-context';
-import {useAuth} from '../../context/AuthContext';
-import {useCocinaViewModel} from '../../viewmodels/useCocinaViewModel';
-import {usePosLanConfigViewModel} from '../../viewmodels/usePosLanConfigViewModel';
-import {CocinaPizzasScreen} from './CocinaPizzasScreen';
-import {CocinaComplementosScreen} from './CocinaComplementosScreen';
-import {COCINA_COLORS as C} from './CocinaEstacionScreen';
-export function CocinaHomeScreen(){
- const {usuario,cerrarSesion}=useAuth(),vm=useCocinaViewModel(),conexion=usePosLanConfigViewModel();
- const [configurando,setConfigurando]=useState(false);
- return <SafeAreaView style={styles.container}>
-  <StatusBar barStyle="dark-content" backgroundColor={C.background}/>
-  <View style={styles.header}><Image source={require('../../../assets/logo.png')} resizeMode="contain" style={styles.logo}/><View style={styles.user}><Text style={styles.name}>Hola, {usuario?.nombre?.split(' ')[0]??'Cocina'}</Text><Text style={styles.role}>Cocina</Text><Pressable accessibilityRole="button" onPress={cerrarSesion}><Text style={styles.logout}>Cerrar sesión</Text></Pressable></View></View>
-  <View style={styles.connection}><View style={styles.status}><View style={[styles.dot,{backgroundColor:vm.conectado?C.green:C.orange}]}/><Text style={styles.statusText}>{vm.conectado?'POS conectado':'Sin conexión con el POS'}</Text></View><Pressable accessibilityRole="button" onPress={()=>setConfigurando(!configurando)}><Text style={styles.configLink}>{configurando?'Volver a cocina':'Conexión POS'}</Text></Pressable></View>
-  {configurando?<ScrollView contentContainerStyle={styles.configContent} keyboardShouldPersistTaps="handled"><View style={styles.configCard}>
-   <Text style={styles.configTitle}>Conexión con POS Electron</Text><Text accessibilityRole="alert" style={styles.message}>{conexion.mensaje}</Text>
-   <Text style={styles.label}>Dirección del POS</Text><TextInput accessibilityLabel="Dirección del POS" value={conexion.urlBase} onChangeText={conexion.setUrlBase} placeholder="http://192.168.1.78:3101" autoCapitalize="none" autoCorrect={false} keyboardType="url" style={styles.input}/>
-   <Text style={styles.label}>Token LAN</Text><TextInput accessibilityLabel="Token LAN" value={conexion.token} onChangeText={conexion.setToken} secureTextEntry autoCapitalize="none" autoCorrect={false} style={styles.input}/>
-   <Pressable accessibilityRole="button" disabled={conexion.procesando} onPress={()=>void conexion.guardarYVerificar()} style={styles.save}>{conexion.procesando?<ActivityIndicator color="white"/>:<Text style={styles.saveText}>Verificar y guardar conexión</Text>}</Pressable>
-   <Text style={styles.hint}>Usa la dirección de la computadora y el token del POS. Se conservan al cambiar de sesión.</Text>
-  </View></ScrollView>:<>
-   <View style={styles.tabs}>{(['pizzas','complementos'] as const).map(estacion=><Pressable key={estacion} accessibilityRole="tab" accessibilityState={{selected:vm.estacion===estacion}} onPress={()=>vm.setEstacion(estacion)} style={[styles.tab,vm.estacion===estacion&&styles.selected]}><Text style={[styles.tabText,vm.estacion===estacion&&styles.selectedText]}>{estacion==='pizzas'?'Pizzas':'Complementos'}</Text></Pressable>)}</View>
-   {vm.estacion==='pizzas'?<CocinaPizzasScreen vm={vm}/>:<CocinaComplementosScreen vm={vm}/>}
-   <View style={styles.footer}><Text style={styles.footerText}>{vm.actualizado?`Última consulta: ${vm.actualizado.toLocaleTimeString('es-MX',{hour:'2-digit',minute:'2-digit'})}`:'Esperando pedidos del POS'}</Text></View>
-  </>}
- </SafeAreaView>;
+import React, { useState } from 'react';
+import { Modal, Pressable, StatusBar, StyleSheet, Text, View } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { useNavigation } from '@react-navigation/native';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import type { RootStackParamList } from '../../navigation/RootNavigator';
+import type { EstacionCocina } from '../../services/CocinaPOSService';
+import { useAuth } from '../../context/AuthContext';
+import { useCocinaViewModel } from '../../viewmodels/useCocinaViewModel';
+import { CocinaEstacionScreen, COCINA_COLORS as C } from './CocinaEstacionScreen';
+
+const estaciones = {
+  pizzas: { titulo: 'Pizzas', icono: 'pizza-outline' },
+  complementos: { titulo: 'Complementos', icono: 'restaurant-outline' },
+} as const;
+
+export function CocinaHomeScreen() {
+  const [estacion, setEstacion] = useState<EstacionCocina | null>(null);
+  const [menu, setMenu] = useState(false);
+  const { cerrarSesion } = useAuth();
+  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
+  const vm = useCocinaViewModel(estacion ?? 'pizzas');
+
+  function volverAEstaciones() {
+    setMenu(false);
+    setEstacion(null);
+  }
+
+  return (
+    <SafeAreaView style={s.root}>
+      <StatusBar barStyle="dark-content" />
+      {estacion ? (
+        <CocinaEstacionScreen
+          key={estacion}
+          vm={vm}
+          titulo={estaciones[estacion].titulo}
+          onMenu={() => setMenu(true)}
+          onVolver={volverAEstaciones}
+        />
+      ) : (
+        <View style={s.setup}>
+          <Text style={s.kicker}>PIZZA MYA · COCINA</Text>
+          <Text accessibilityRole="header" style={s.title}>Elige una estación</Text>
+          <Text style={s.info}>Abre la lista de Pizzas o Complementos.</Text>
+          {(['pizzas', 'complementos'] as const).map(opcion => (
+            <Pressable key={opcion} accessibilityRole="button" accessibilityLabel={estaciones[opcion].titulo} onPress={() => setEstacion(opcion)} style={s.estacion}>
+              <View style={s.icono}><Ionicons name={estaciones[opcion].icono} size={23} color={C.red} /></View>
+              <Text style={s.estacionTexto}>{estaciones[opcion].titulo}</Text>
+              <Ionicons name="chevron-forward" size={20} color={C.muted} />
+            </Pressable>
+          ))}
+          <Pressable accessibilityRole="button" accessibilityLabel="Menú de cocina" onPress={() => setMenu(true)} style={s.option}>
+            <Text style={s.optionText}>Opciones</Text>
+          </Pressable>
+        </View>
+      )}
+
+      <Modal visible={menu} transparent animationType="fade" onRequestClose={() => setMenu(false)}>
+        <View style={s.overlay}>
+          <View style={s.menu} accessibilityViewIsModal>
+            <Text accessibilityRole="header" style={s.title}>{estacion ? estaciones[estacion].titulo : 'Cocina'}</Text>
+            <Text style={s.info}>{vm.conectado ? 'POS conectado' : 'Sin conexión con el POS'}</Text>
+            {estacion && <Pressable accessibilityRole="button" onPress={volverAEstaciones} style={s.option}><Text style={s.optionText}>Cambiar estación</Text></Pressable>}
+            <Pressable accessibilityRole="button" onPress={() => { setMenu(false); void vm.cargar(); }} style={s.option}><Text style={s.optionText}>Actualizar pedidos</Text></Pressable>
+            <Pressable accessibilityRole="button" onPress={() => { setMenu(false); navigation.navigate('Perfil'); }} style={s.option}><Text style={s.optionText}>Perfil</Text></Pressable>
+            <Pressable accessibilityRole="button" onPress={() => { setMenu(false); void cerrarSesion(); }} style={s.option}><Text style={s.optionText}>Cerrar sesión</Text></Pressable>
+            <Pressable accessibilityRole="button" onPress={() => setMenu(false)} style={s.option}><Text style={s.optionText}>Cerrar menú</Text></Pressable>
+          </View>
+        </View>
+      </Modal>
+    </SafeAreaView>
+  );
 }
-const styles=StyleSheet.create({container:{flex:1,backgroundColor:C.background},header:{flexDirection:'row',alignItems:'center',justifyContent:'space-between',paddingHorizontal:20,paddingVertical:8},logo:{width:88,height:70},user:{alignItems:'flex-end',gap:3},name:{fontSize:15,fontWeight:'800',color:C.text},role:{fontSize:12,color:C.muted},logout:{fontSize:12,fontWeight:'700',color:C.red,paddingVertical:5},connection:{flexDirection:'row',justifyContent:'space-between',alignItems:'center',paddingHorizontal:20,paddingVertical:10,borderTopWidth:1,borderTopColor:C.border},status:{flexDirection:'row',alignItems:'center',gap:6},dot:{height:7,width:7,borderRadius:4},statusText:{fontSize:11,color:C.muted},configLink:{fontSize:12,fontWeight:'700',color:C.red,paddingVertical:6},tabs:{marginHorizontal:20,marginTop:8,flexDirection:'row',padding:4,backgroundColor:'#F0E3DA',borderRadius:15},tab:{flex:1,paddingVertical:12,alignItems:'center',borderRadius:12},selected:{backgroundColor:C.red},tabText:{fontSize:15,fontWeight:'700',color:C.muted},selectedText:{color:C.white},footer:{paddingHorizontal:20,paddingVertical:8,borderTopWidth:1,borderTopColor:C.border},footerText:{color:C.muted,fontSize:11,textAlign:'center'},configContent:{padding:20},configCard:{backgroundColor:C.white,padding:20,borderRadius:20,borderWidth:1,borderColor:C.border,gap:12},configTitle:{fontSize:22,fontWeight:'800',color:C.text},message:{fontSize:13,color:C.muted,lineHeight:20},label:{fontSize:14,fontWeight:'700',color:C.text,marginTop:8},input:{padding:14,fontSize:15,borderWidth:1,borderColor:C.border,borderRadius:12,backgroundColor:'#FAFAFA',color:C.text},save:{padding:15,backgroundColor:C.red,borderRadius:13,alignItems:'center',marginTop:8},saveText:{color:C.white,fontWeight:'700',fontSize:14},hint:{fontSize:12,color:C.muted,lineHeight:19}});
+
+const s = StyleSheet.create({
+  root: { flex: 1, backgroundColor: C.background },
+  setup: { flex: 1, padding: 24, paddingTop: 36, gap: 14 },
+  kicker: { color: C.red, fontSize: 12, fontWeight: '800', letterSpacing: 1.4 },
+  title: { fontSize: 24, fontWeight: '800', color: C.text },
+  info: { fontSize: 14, lineHeight: 21, color: C.muted },
+  estacion: { minHeight: 66, padding: 12, flexDirection: 'row', alignItems: 'center', gap: 12, borderRadius: 16, borderWidth: 1, borderColor: C.border, backgroundColor: C.white },
+  icono: { width: 40, height: 40, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: '#F7E9DE' },
+  estacionTexto: { flex: 1, fontSize: 17, fontWeight: '800', color: C.text },
+  overlay: { flex: 1, backgroundColor: '#0006', justifyContent: 'center', padding: 28 },
+  menu: { padding: 20, gap: 8, borderRadius: 18, backgroundColor: C.white },
+  option: { minHeight: 44, justifyContent: 'center', paddingVertical: 8 },
+  optionText: { fontSize: 16, fontWeight: '700', color: C.red },
+});
