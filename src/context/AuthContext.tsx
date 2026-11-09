@@ -1,12 +1,16 @@
+import { guardarSesionLocal, recuperarSesionLocal, eliminarSesionLocal } from '../services/SesionAutenticada';
 
 import React, {
   createContext,
+  useEffect,
+  useRef,
   useContext,
   useState,
   type ReactNode,
 } from 'react';
 
-import type { Usuario, RolUsuario } from '../models/Usuario';
+import type { Usuario } from '../models/Usuario';
+import { normalizarRol } from '../utils/normalizarRol';
 import { autenticarUsuario } from '../repositories/AuthRepository';
 import { ApiHttpError } from '../services/api/ApiClient';
 
@@ -24,19 +28,6 @@ const AuthContext = createContext<AuthContextType | undefined>(
   undefined
 );
 
-function normalizarRol(rol: string): RolUsuario | null {
-  switch (rol.trim().toUpperCase()) {
-    case 'MESERO':
-      return 'mesero';
-
-    case 'COCINA':
-      return 'cocina';
-
-    default:
-      return null;
-  }
-}
-
 export function AuthProvider({
   children,
 }: {
@@ -45,10 +36,21 @@ export function AuthProvider({
   const [usuario, setUsuario] = useState<Usuario | null>(null);
   const [token, setToken] = useState<string | null>(null);
 
+  const generacion = useRef(0);
+  useEffect(() => {
+    let activo = true;
+    const actual = generacion.current;
+    void recuperarSesionLocal().then(s => {
+      if (activo && generacion.current === actual && s) { setUsuario(s.usuario); setToken(s.token); }
+    }).catch(() => undefined);
+    return () => { activo = false; };
+  }, []);
+
   const iniciarSesion = async (
     correo: string,
     password: string
   ): Promise<boolean> => {
+    generacion.current += 1;
     try {
       const resultado = await autenticarUsuario(
         correo.trim().toLowerCase(),
@@ -69,14 +71,17 @@ export function AuthProvider({
 
       setToken(resultado.token);
 
-      setUsuario({
+      const usuarioAutenticado: Usuario = {
         id: resultado.user.id,
         nombre: resultado.user.nombres,
         rol,
-      });
+      };
+      await guardarSesionLocal(usuarioAutenticado, resultado.token);
+      setUsuario(usuarioAutenticado);
 
       return true;
     } catch (error) {
+      void eliminarSesionLocal().catch(() => undefined);
       setUsuario(null);
       setToken(null);
 
@@ -103,6 +108,8 @@ export function AuthProvider({
   };
 
   const cerrarSesion = () => {
+    generacion.current += 1;
+    void eliminarSesionLocal().catch(() => undefined);
     setUsuario(null);
     setToken(null);
   };

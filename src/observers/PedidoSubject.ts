@@ -22,7 +22,7 @@ export class PedidoSubject {
   notificar(pedido: Pedido): void {
     for (const observador of this.observadores.get(pedido.id) ?? []) {
       // Entregar una copia evita que un observador modifique a los demás.
-      observador({ ...pedido });
+      observador(JSON.parse(JSON.stringify(pedido)) as Pedido);
     }
   }
 }

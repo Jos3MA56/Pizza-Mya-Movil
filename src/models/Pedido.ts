@@ -1,9 +1,81 @@
-/** Modelo de dominio: no depende de React ni de servicios HTTP. */
-export type EstadoPedido = 'borrador' | 'enviado' | 'cancelado';
+/**
+ * Modelo de dominio de Pizza Mya Móvil.
+ * No depende de React ni de servicios HTTP.
+ */
+
+export type EstadoPedido = "borrador" | "enviado" | "cancelado" | "cerrado";
+
+export type EstadoProducto =
+  | "pendiente"
+  | "en_preparacion"
+  | "listo"
+  | "entregado"
+  | "cancelado";
+
+// Nombre de categoría del backend; no limitar a las tres categorías del prototipo.
+export type CategoriaProducto = string;
+
+export type PorcionPizza = '1/2' | '1/4' | '3/4' | '1/3';
+export interface PartePizza { productoId: string; productoTamanioId: string; porcion: PorcionPizza }
+
+export interface ProductoComanda {
+  combinacion?: PartePizza[];
+  orillaId?: string;
+  orillaNombre?: string;
+  orillaCostoCentavos?: number;
+  estadoCocina?: 'pendiente' | 'en_preparacion' | 'listo';
+  cancelacionMotivo?: string;
+  canceladoEn?: string;
+  publicada?: boolean;
+  pedidoPOS?: string;
+  id: string;
+  productoId: string;
+  nombre: string;
+  categoria: CategoriaProducto;
+  categoriaId?: string;
+  productoTamanioId?: string;
+  tamanioId?: string;
+  tamanio?: string;
+  cantidad: number;
+  precioUnitario: number;
+  subtotal: number;
+  estado: EstadoProducto;
+  observaciones?: string;
+}
+
+export interface CambioComanda {
+  id: string;
+  fecha: string;
+  usuarioId: string;
+  accion:
+    | "crear"
+    | "agregar_producto"
+    | "editar_producto"
+    | "cancelar_producto";
+  descripcion: string;
+}
 
 export interface Pedido {
+  productosArchivados?: (ProductoComanda & {precioCentavos?:number})[];
+  totalCierreCentavos?: number;
+  cerradoEn?: string;
+  tipoPedido?: 'mesa' | 'para_llevar';
+  nombreCliente?: string;
+  compartida?: boolean;
+  sinConexion?: boolean;
+  revision?: number;
+  preparada?: boolean;
   id: string;
   folio?: string;
   estado: EstadoPedido;
   total: number;
+
+  // Campos adicionales para la Iteración 2.
+  mesaId?: number;
+  productos?: ProductoComanda[];
+  observaciones?: string;
+  creadoPor?: string;
+  creadoEn?: string;
+  actualizadoEn?: string;
+  historial?: CambioComanda[];
 }

@@ -1,0 +1,61 @@
+name: MobSF APK (análisis estático)
+
+on:
+  workflow_dispatch:
+    inputs:
+      build_run_id:
+        description: ID de ejecución de este repositorio que contiene el APK
+        required: true
+        type: string
+      artifact_name:
+        description: Nombre exacto del artefacto que contiene un único APK
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  apk:
+    name: MobSF estático sobre APK
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version-file: .nvmrc
+      - name: Validar referencia a la compilación
+        env:
+          BUILD_RUN_ID: ${{ inputs.build_run_id }}
+        run: node -e "if (!/^[1-9][0-9]*$/.test(process.env.BUILD_RUN_ID)) process.exit(1)"
+      - name: Descargar APK de este repositorio
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: ${{ inputs.artifact_name }}
+          run-id: ${{ inputs.build_run_id }}
+          github-token: ${{ github.token }}
+          path: apk-input/
+      - name: Iniciar MobSF aislado en el ejecutor
+        run: |
+          MOBSF_API_KEY=$(openssl rand -hex 32)
+          echo "::add-mask::$MOBSF_API_KEY"
+          echo "MOBSF_API_KEY=$MOBSF_API_KEY" >> "$GITHUB_ENV"
+          export MOBSF_API_KEY
+          docker run --detach --name mobsf-ci --publish 127.0.0.1:8000:8000 --env MOBSF_API_KEY opensecurity/mobile-security-framework-mobsf:v4.5.3
+      - name: Analizar APK y recuperar informe
+        run: node scripts/security/mobsf.cjs apk-input
+      - name: Conservar informe MobSF
+        if: ${{ always() }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: seguridad-mobsf
+          path: security-results/mobsf-*.json
+          retention-days: 14
+          if-no-files-found: ignore
+      - name: Detener MobSF
+        if: ${{ always() }}
+        run: docker rm --force mobsf-ci || true

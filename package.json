@@ -6,15 +6,24 @@
     "@expo/vector-icons": "^15.0.2",
     "@react-navigation/native": "^7.5.0",
     "@react-navigation/native-stack": "^7.20.0",
-    "expo": "~57.0.27",
-    "expo-status-bar": "~57.0.1",
-    "react": "19.2.3",
-    "react-native": "0.86.3",
-    "react-native-safe-area-context": "~5.7.0",
-    "react-native-screens": "~4.26.0"
+    "expo": "^58.0.20",
+    "expo-camera": "~58.0.13",
+    "expo-crypto": "~58.0.7",
+    "expo-font": "~58.0.10",
+    "expo-secure-store": "~58.0.2",
+    "expo-sqlite": "~58.0.14",
+    "expo-status-bar": "~58.0.4",
+    "react": "19.3.0",
+    "react-native": "0.88.0",
+    "react-native-safe-area-context": "~5.10.1",
+    "react-native-screens": "~4.30.0"
   },
   "devDependencies": {
-    "@types/react": "~19.2.2",
+    "@testing-library/react-native": "^14.1.0",
+    "@types/jest": "30.0.0",
+    "@types/react": "~19.3.0",
+    "jest": "~30.5.2",
+    "jest-expo": "~58.0.12",
     "typescript": "~6.0.3"
   },
   "scripts": {
@@ -22,8 +31,19 @@
     "android": "expo start --android",
     "ios": "expo start --ios",
     "web": "expo start --web",
+    "test:offline": "node scripts/test-offline-sqlite.cjs",
     "test:patterns": "node scripts/test-patrones.cjs",
-    "test:api": "node scripts/test-api.cjs"
+    "test:api": "node scripts/test-api.cjs",
+    "test:unit": "jest --runInBand",
+    "test:pos-client": "node scripts/test-pos-client.cjs",
+    "test:cocina-pos": "node scripts/test-cocina-pos.cjs",
+    "typecheck": "tsc --noEmit",
+    "test:ci": "npm run typecheck && npm run test:unit:ci && npm run test:patterns && npm run test:api && npm run test:offline && npm run test:pos-client && npm run test:cocina-pos && npm run test:security-tools",
+    "test:unit:ci": "node -e \"require('node:fs').mkdirSync('test-results', {recursive:true})\" && npm run test:unit -- --ci --coverage --json --outputFile=test-results/jest.json",
+    "test:security-tools": "node --test scripts/security/__tests__/audit.test.cjs scripts/security/__tests__/mobsf.test.cjs",
+    "security:audit": "node scripts/security/audit.cjs",
+    "test:lan": "node scripts/test-pos-lan.cjs",
+    "test:compartidas": "node scripts/test-cuentas-compartidas.cjs"
   },
   "private": true
 }
