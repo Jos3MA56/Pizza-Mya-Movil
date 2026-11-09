@@ -63,7 +63,7 @@ let pedido;
 test('Flujo integrado sobre SQLite real', async t => {
   await t.test('migración incremental conserva operaciones v1', async () => {
     await obtenerBaseDatos();
-    assert.equal(sqlite.prepare('PRAGMA user_version').get().user_version,4);
+    assert.equal(sqlite.prepare('PRAGMA user_version').get().user_version, 4);
     assert.equal(sqlite.prepare('SELECT COUNT(*) n FROM operaciones_pendientes').get().n,1);
     assert.equal(sqlite.prepare('SELECT mesa_id FROM comandas_locales WHERE id_local=?').get('old').mesa_id,'9');
   });
