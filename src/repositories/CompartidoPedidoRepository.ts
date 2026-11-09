@@ -1,3 +1,4 @@
+import {retirarProductoLocal} from '../services/RetirarProducto';
 import type {SQLiteDatabase} from 'expo-sqlite';
 import * as Crypto from 'expo-crypto';
 import type {Pedido,ProductoComanda} from '../models/Pedido';
@@ -8,20 +9,25 @@ import {obtenerConfiguracionPOS} from '../services/sync/PosLanConfig';
 import {solicitudPOS,ErrorHTTPPOS} from '../services/sync/PosLanClient';
 import {exigirActorLocal} from '../services/SesionLocal';
 import {PedidoSubject} from '../observers/PedidoSubject';
-const minimo=(p:ProductoComanda)=>({id:p.id,productoId:p.productoId,productoTamanioId:p.productoTamanioId,tamanioId:p.tamanioId,cantidad:p.cantidad,observaciones:p.observaciones??'',estado:p.estado});
+const minimo=(p:ProductoComanda)=>({... (p.combinacion?{combinacion:p.combinacion}:{}),... (p.orillaId?{orillaId:p.orillaId}:{}),id:p.id,productoId:p.productoId,productoTamanioId:p.productoTamanioId,tamanioId:p.tamanioId,cantidad:p.cantidad,observaciones:p.observaciones??'',estado:p.estado});
 export interface CambioCompartido {operacionId:string;cuentaId:string;payload:string;estado:string;resultado:string|null;error:string|null;fecha:string}
 export class CompartidoPedidoRepository implements PedidoRepository{
  private local=new SQLitePedidoRepository();private eventos=new PedidoSubject();private ocupado=false;
  constructor(private base:()=>Promise<SQLiteDatabase>=obtenerBaseDatos){}
  private async api(ruta:string,body?:unknown){const c=await obtenerConfiguracionPOS();if(!c)throw new Error('Vincula este telefono con el POS desde Perfil.');const r=await solicitudPOS(c.urlBase,c.token,'/cuentas'+ruta,body?{method:'POST',body:JSON.stringify(body)}:{});return r?.data??null;}
- private async cache(p:Pedido){const db=await this.base();await transaccionLocal(db,async tx=>{await tx.runAsync("INSERT INTO cuentas_cache VALUES (?,?,?) ON CONFLICT(id) DO UPDATE SET documento=excluded.documento WHERE json_extract(excluded.documento,'$.revision')>=json_extract(cuentas_cache.documento,'$.revision')",p.id,p.mesaId!,JSON.stringify(p));});const actual=await db.getFirstAsync<{documento:string}>('SELECT documento FROM cuentas_cache WHERE id=?',p.id);const ultimo=actual?JSON.parse(actual.documento) as Pedido:p;this.eventos.notificar(ultimo);return ultimo;}
+ private async cache(p:Pedido){const db=await this.base();await transaccionLocal(db,async tx=>{await tx.runAsync("INSERT INTO cuentas_cache VALUES (?,?,?) ON CONFLICT(id) DO UPDATE SET documento=excluded.documento WHERE json_extract(excluded.documento,'$.revision')>=json_extract(cuentas_cache.documento,'$.revision')",p.id,p.mesaId??0,JSON.stringify(p));});const actual=await db.getFirstAsync<{documento:string}>('SELECT documento FROM cuentas_cache WHERE id=?',p.id);const ultimo=actual?JSON.parse(actual.documento) as Pedido:p;this.eventos.notificar(ultimo);return ultimo;}
  private async ultima(id:string){return (await this.base()).getFirstAsync<CambioCompartido>("SELECT * FROM cuentas_cola WHERE cuentaId=? AND estado IN ('ENVIANDO','RESULTADO_DESCONOCIDO') ORDER BY fecha LIMIT 1",id);}
- private async confirmar(op:string,resultado:any){await (await this.base()).runAsync("UPDATE cuentas_cola SET estado='CONFIRMADA',resultado=?,error=NULL WHERE operacionId=?",JSON.stringify(resultado),op);await this.cache(resultado.cuenta);return resultado;}
+ // La cola comparte el turno de escritura con la caché y los demás repositorios.
+ private async escribirCola(...args:Parameters<SQLiteDatabase['runAsync']>){
+  const db=await this.base();
+  await transaccionLocal(db,async tx=>{await tx.runAsync(...args);});
+ }
+ private async confirmar(op:string,resultado:any){await this.escribirCola("UPDATE cuentas_cola SET estado='CONFIRMADA',resultado=?,error=NULL WHERE operacionId=?",JSON.stringify(resultado),op);await this.cache(resultado.cuenta);return resultado;}
  private async conciliar(id:string,bloquear=false){const op=await this.ultima(id);if(!op)return;const r=await this.api(`/${id}/operaciones/${op.operacionId}`);if(r)await this.confirmar(op.operacionId,r);else if(bloquear)throw new Error('Hay un cambio sin confirmar. Abre Seguimiento y resuelve la operacion antes de editar.');}
- private async enviar(op:CambioCompartido){try{const r=await this.api(`/${op.cuentaId}/operaciones`,JSON.parse(op.payload));return await this.confirmar(op.operacionId,r);}catch(e){const definitivo=e instanceof ErrorHTTPPOS&&e.status>=400&&e.status<500&&e.status!==408;await (await this.base()).runAsync('UPDATE cuentas_cola SET estado=?,error=? WHERE operacionId=?',definitivo?(e.status===409?'CONFLICTO':'RECHAZADA'):'RESULTADO_DESCONOCIDO',e instanceof Error?e.message:'Resultado pendiente',op.operacionId);throw e;}}
+ private async enviar(op:CambioCompartido){try{const r=await this.api(`/${op.cuentaId}/operaciones`,JSON.parse(op.payload));return await this.confirmar(op.operacionId,r);}catch(e){const definitivo=e instanceof ErrorHTTPPOS&&e.status>=400&&e.status<500&&e.status!==408;await this.escribirCola('UPDATE cuentas_cola SET estado=?,error=? WHERE operacionId=?',definitivo?(e.status===409?'CONFLICTO':'RECHAZADA'):'RESULTADO_DESCONOCIDO',e instanceof Error?e.message:'Resultado pendiente',op.operacionId);throw e;}}
  private async mutar(id:string,version:number,accion:string,datos:object={}){
   const actor=exigirActorLocal('mesero');if(this.ocupado)throw new Error('Espera a que termine el cambio actual.');this.ocupado=true;
-  try{await this.conciliar(id,true);const body={operacionId:Crypto.randomUUID(),meseroId:actor.id,version,accion,...datos};const op:CambioCompartido={operacionId:body.operacionId,cuentaId:id,payload:JSON.stringify(body),estado:'ENVIANDO',resultado:null,error:null,fecha:new Date().toISOString()};await (await this.base()).runAsync('INSERT INTO cuentas_cola VALUES (?,?,?,?,?,?,?)',op.operacionId,id,op.payload,op.estado,null,null,op.fecha);return await this.enviar(op);}finally{this.ocupado=false;}
+  try{await this.conciliar(id,true);const body={operacionId:Crypto.randomUUID(),meseroId:actor.id,version,accion,...datos};const op:CambioCompartido={operacionId:body.operacionId,cuentaId:id,payload:JSON.stringify(body),estado:'ENVIANDO',resultado:null,error:null,fecha:new Date().toISOString()};await this.escribirCola('INSERT INTO cuentas_cola VALUES (?,?,?,?,?,?,?)',op.operacionId,id,op.payload,op.estado,null,null,op.fecha);return await this.enviar(op);}finally{this.ocupado=false;}
  }
  async obtenerPorId(id:string):Promise<Pedido|null>{
   exigirActorLocal('mesero');if(!id.startsWith('cuenta-'))return this.local.obtenerPorId(id);
@@ -30,8 +36,23 @@ export class CompartidoPedidoRepository implements PedidoRepository{
  }
  async listarComandasActivas():Promise<Pedido[]>{
   exigirActorLocal('mesero');if(!await obtenerConfiguracionPOS())return this.local.listarComandasActivas();
-  try{const r=await this.api('');if(!r?.cuentasCompartidas||!Array.isArray(r.cuentas))throw new Error('Reinicia el servidor POS para habilitar mesas compartidas.');const actuales:Pedido[]=[];for(const p of r.cuentas)actuales.push(await this.cache(p));return actuales;}
-  catch(e){if(e instanceof ErrorHTTPPOS&&e.status<500)throw e;const filas=await (await this.base()).getAllAsync<{documento:string}>('SELECT documento FROM cuentas_cache ORDER BY mesa');if(!filas.length)throw e;return filas.map(f=>({...JSON.parse(f.documento),sinConexion:true}));}
+  try{const r=await this.api('');if(!r?.cuentasCompartidas||!Array.isArray(r.cuentas))throw new Error('Reinicia el servidor POS para habilitar mesas compartidas.');const actuales:Pedido[]=[];for(const p of r.cuentas)actuales.push(await this.cache(p));
+   const db=await this.base();await transaccionLocal(db,async tx=>{
+    const ids=r.cuentas.map((p:Pedido)=>p.id);
+    if(ids.length)await tx.runAsync('DELETE FROM cuentas_cache WHERE id NOT IN ('+ids.map(()=>'?').join(',')+')',...ids);
+    else await tx.runAsync('DELETE FROM cuentas_cache');
+   });return actuales.filter(p=>p.estado!=='cerrado');}
+  catch(e){if(e instanceof ErrorHTTPPOS&&e.status<500)throw e;const filas=await (await this.base()).getAllAsync<{documento:string}>('SELECT documento FROM cuentas_cache ORDER BY mesa');if(!filas.length)throw e;return filas.map(f=>({...JSON.parse(f.documento),sinConexion:true})).filter(p=>p.estado!=='cerrado');}
+ }
+ async listarComandasCerradas():Promise<Pedido[]>{
+  exigirActorLocal('mesero');const r=await this.api('?estado=cerrada');
+  if(!Array.isArray(r?.cuentas)||r.cuentas.some((p:Pedido)=>p.estado!=='cerrado'))throw new Error('Actualiza el servicio POS para consultar los pedidos cerrados.');
+  return r.cuentas;
+ }
+ async crearParaLlevar(nombreCliente:string,requestId:string){
+  const actor=exigirActorLocal('mesero');
+  const r=await this.api('/para-llevar',{meseroId:actor.id,nombreCliente,requestId});
+  return this.cache(r.cuenta);
  }
  async crearComanda(mesaId:number,usuarioId:string){
   if(exigirActorLocal('mesero').id!==usuarioId)throw new Error('Mesero no autorizado.');if(!await obtenerConfiguracionPOS())return this.local.crearComanda(mesaId,usuarioId);
@@ -44,6 +65,13 @@ export class CompartidoPedidoRepository implements PedidoRepository{
   const p=await this.obtenerPorId(id);if(!p||p.sinConexion)throw new Error('Conecta con el POS antes de modificar una cuenta compartida.');return (await this.mutar(id,p.revision!,'agregar',{producto:minimo(producto)})).cuenta as Pedido;
  }
  suscribir(id:string,fn:ObservadorPedido){return id.startsWith('cuenta-')?this.eventos.suscribir(id,fn):this.local.suscribir(id,fn);}
+ async retirarProducto(id:string,lineaId:string,motivo?:string,revision?:number){
+  if(!id.startsWith('cuenta-'))return retirarProductoLocal(this.local,id,lineaId,revision);
+  const p=await this.obtenerPorId(id);if(!p||p.sinConexion)throw new Error('Conecta con el POS para confirmar la cancelación.');
+  if(revision!==undefined&&p.revision!==revision)throw new Error('Otro mesero actualizó esta comanda. Revisa el producto y vuelve a intentar.');
+  const linea=p.productos?.find(i=>i.id===lineaId);if(!linea||linea.estado==='cancelado')throw new Error('El producto ya fue retirado. Actualiza la comanda.');
+  const r=await this.mutar(id,p.revision!,linea.publicada?'cancelar':'quitar',{lineaId,...(linea.publicada?{motivo:motivo??''}:{})});return r.cuenta as Pedido;
+ }
  async publicar(id:string){const p=await this.obtenerPorId(id);if(!p||p.sinConexion)throw new Error('Conecta con el POS para enviar los productos nuevos.');return this.mutar(id,p.revision!,'publicar');}
  async operaciones(id:string){exigirActorLocal('mesero');return (await this.base()).getAllAsync<CambioCompartido>('SELECT * FROM cuentas_cola WHERE cuentaId=? ORDER BY fecha DESC',id);}
  async resolverPendiente(id:string){

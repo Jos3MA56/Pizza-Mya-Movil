@@ -96,6 +96,55 @@ test('dos celulares con SQLite separados comparten mesa, editan con version y pu
   const revision=(await a.obtenerPorId(cuenta.id)).revision;
   const enviar=async(n)=>{const r=await realFetch(urlBase+'/api/local/cuentas/'+cuenta.id+'/operaciones',{method:'POST',headers:{Authorization:'Bearer '+token,'Content-Type':'application/json'},body:JSON.stringify({operacionId:'simultanea-'+n,meseroId:'mesero-'+n,version:revision,accion:'agregar',producto:{id:'linea-sim-'+n,productoId:'pizza',productoTamanioId:'v-pizza',tamanioId:'mediana',cantidad:1,observaciones:'',estado:'pendiente'}})});return r.status;};
   assert.deepEqual((await Promise.all([enviar(1),enviar(2)])).sort(),[200,409]);
+  // Cancelación real desde el Repository móvil y dos cachés independientes.
+  actor('mesero-1');let paraCancelar=await a.crearComanda(6,'mesero-1');
+  await a.agregarProducto(paraCancelar.id,item('linea-cancelacion'),'mesero-1');
+  const enviada=await a.publicar(paraCancelar.id);
+  actor('mesero-2');paraCancelar=await b.obtenerPorId(paraCancelar.id);
+  assert.equal(paraCancelar.productos[0].estadoCocina,'pendiente');
+  await assert.rejects(b.retirarProducto(paraCancelar.id,'linea-cancelacion','Cambio de pedido',paraCancelar.revision-1),/Otro mesero/);
+  const cancelada=await b.retirarProducto(paraCancelar.id,'linea-cancelacion','Cliente cambió de opinión',paraCancelar.revision);
+  assert.equal(cancelada.total,0);assert.equal(cancelada.productos[0].estado,'cancelado');
+  assert.equal(db.prepare('SELECT count(*) n FROM pos_cancelaciones_local').get().n,1);
+  assert.equal(db.prepare('SELECT motivo FROM pos_cancelaciones_local').get().motivo,'Cliente cambió de opinión');
+  actor('mesero-1');assert.equal((await a.obtenerPorId(paraCancelar.id)).total,0);
+  const cocina=await realFetch(urlBase+'/api/local/cocina',{headers:{Authorization:'Bearer '+token}});
+  assert.ok(!(await cocina.json()).tickets.some(t=>t.id===enviada.recibo.id));
+  // Nota individual: dos celulares, publicación y cocina usan el mismo dato.
+  const {guardarNotaProducto}=load('src/services/GuardarNotaProducto');
+  actor('mesero-1');const conNotas=await a.crearComanda(7,'mesero-1');await a.agregarProducto(conNotas.id,item('nota-pizza'),'mesero-1');await a.agregarProducto(conNotas.id,item('nota-papas','papas'),'mesero-1');
+  let actualNotas=await a.obtenerPorId(conNotas.id);const totalNotas=actualNotas.total;
+  actualNotas=await guardarNotaProducto(a,conNotas.id,'nota-pizza','Sin tocino',actualNotas.revision);
+  actualNotas=await guardarNotaProducto(a,conNotas.id,'nota-papas','Sin sal',actualNotas.revision);
+  actor('mesero-2');const vistas=await b.obtenerPorId(conNotas.id);assert.equal(vistas.total,totalNotas);assert.equal(vistas.productos.find(p=>p.id==='nota-pizza').observaciones,'Sin tocino');
+  const envioNotas=await b.publicar(conNotas.id);
+  await assert.rejects(guardarNotaProducto(b,conNotas.id,'nota-pizza','Cambiar después',envioNotas.cuenta.revision),/antes de enviar/);
+  const cocinaNotas=await realFetch(urlBase+'/api/local/cocina',{headers:{Authorization:'Bearer '+token}});
+  const ticketNotas=(await cocinaNotas.json()).tickets.find(t=>t.id===envioNotas.recibo.id);
+  assert.equal(ticketNotas.productos.find(p=>p.lineaId==='nota-pizza').observaciones,'Sin tocino');assert.equal(ticketNotas.productos.find(p=>p.lineaId==='nota-papas').observaciones,'Sin sal');
+
+  // Cierre desde POS: ambos móviles liberan la mesa y la caché no la revive sin red.
+  await a.listarComandasActivas();await b.listarComandasActivas();
+  const antesCierre=await a.obtenerPorId(conNotas.id);
+  const cerrar=await realFetch(urlBase+'/api/local/cuentas/'+conNotas.id+'/operaciones',{method:'POST',headers:{Authorization:'Bearer '+token,'Content-Type':'application/json'},body:JSON.stringify({operacionId:'cerrar-mesa-prueba',meseroId:'pos-local',version:antesCierre.revision,accion:'cerrar'})});
+  assert.equal(cerrar.status,200);
+  assert.equal((await a.obtenerPorId(conNotas.id)).estado,'cerrado');
+  assert.ok((await a.listarComandasCerradas()).some(p=>p.id===conNotas.id&&p.totalCierreCentavos>0&&p.productosArchivados.length===2));
+  assert.equal((await b.obtenerPorId(conNotas.id)).productos.length,0);
+  for(const repo of [a,b])assert.ok(!(await repo.listarComandasActivas()).some(p=>p.mesaId===7));
+  global.fetch=async()=>{throw Error('offline');};
+  try{for(const repo of [a,b])assert.ok(!(await repo.listarComandasActivas()).some(p=>p.mesaId===7));}finally{global.fetch=realFetch;}
+  const nuevaMesa=await b.crearComanda(7,'mesero-2');assert.notEqual(nuevaMesa.id,conNotas.id);assert.equal(nuevaMesa.total,0);
+
+  actor('mesero-1');const llevar=await a.crearParaLlevar('María Pérez','llevar-desde-movil');
+  assert.equal(llevar.tipoPedido,'para_llevar');assert.equal(llevar.mesaId,undefined);
+  assert.equal((await a.crearParaLlevar('María Pérez','llevar-desde-movil')).id,llevar.id);
+  await a.agregarProducto(llevar.id,item('llevar-pizza'),'mesero-1');
+  actor('mesero-2');assert.equal((await b.obtenerPorId(llevar.id)).nombreCliente,'María Pérez');
+  const publicadoLlevar=await b.publicar(llevar.id);assert.equal(publicadoLlevar.recibo.nombreCliente,'María Pérez');
+  assert.ok((await b.listarComandasActivas()).some(p=>p.id===llevar.id&&p.tipoPedido==='para_llevar'));
+  global.fetch=async()=>{throw Error('offline');};
+  try{assert.equal((await b.obtenerPorId(llevar.id)).nombreCliente,'María Pérez');}finally{global.fetch=realFetch;}
   console.log('Dos SQLite moviles aislados, una mesa compartida, conflicto seguro, publicacion incremental y recuperacion verificados.');
  }finally{await parar();sqlite.close();sqliteB.close();fs.rmSync(dir,{recursive:true,force:true});}
 });

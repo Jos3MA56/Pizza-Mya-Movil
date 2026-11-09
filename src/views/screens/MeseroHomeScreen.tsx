@@ -129,7 +129,6 @@ export function MeseroHomeScreen() {
     <SafeAreaView style={styles.container}>
       <StatusBar
         barStyle="dark-content"
-        backgroundColor={COLORS.background}
       />
 
       {/* ENCABEZADO */}
@@ -199,7 +198,7 @@ export function MeseroHomeScreen() {
 
           <Pressable
             style={[styles.actionCard, styles.redCard]}
-            onPress={() => abrirProximamente('Pedidos activos')}
+            onPress={() => navigation.navigate('Pedidos')}
             accessibilityRole="button"
           >
             <View style={styles.actionIcon}>
@@ -279,14 +278,16 @@ export function MeseroHomeScreen() {
             </Text>
           </View>
         ) : (
-          comandas.slice(0, 4).map((pedido) => (
-            <View
+          comandas.map((pedido) => (
+            <Pressable
+              accessibilityRole="button"
+              onPress={()=>navigation.navigate('PedidoResumen',{pedidoId:pedido.id})}
               key={pedido.id}
               style={styles.orderCard}
             >
               <View style={styles.tableBadge}>
                 <Text style={styles.tableText}>
-                  {pedido.mesaId !== undefined
+                  {pedido.tipoPedido==='para_llevar'?'🛍️':pedido.mesaId !== undefined
                     ? `M${pedido.mesaId}`
                     : '—'}
                 </Text>
@@ -297,7 +298,7 @@ export function MeseroHomeScreen() {
                   style={styles.orderTitle}
                   numberOfLines={1}
                 >
-                  Pedido {pedido.folio ?? pedido.id}
+                  {pedido.tipoPedido==='para_llevar'?'Para llevar · '+pedido.nombreCliente:'Pedido '+(pedido.folio??pedido.id)}
                 </Text>
 
                 <Text
@@ -319,7 +320,7 @@ export function MeseroHomeScreen() {
                     ? 'Enviado*'
                     : 'Cancelado'}
               </Text>
-            </View>
+            </Pressable>
           ))
         )}
 
@@ -351,7 +352,7 @@ export function MeseroHomeScreen() {
 
         <Pressable
           style={styles.navItem}
-          onPress={() => abrirProximamente('Pedidos')}
+          onPress={() => navigation.navigate('Pedidos')}
         >
           <Text style={styles.navIcon}>▤</Text>
           <Text style={styles.navLabel}>Pedidos</Text>

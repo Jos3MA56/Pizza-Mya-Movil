@@ -32,7 +32,9 @@
           "recordAudioAndroid": false,
           "barcodeScannerEnabled": true
         }
-      ]
+      ],
+      "expo-status-bar",
+      "expo-font"
     ]
   }
 }

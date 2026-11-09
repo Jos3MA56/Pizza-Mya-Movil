@@ -1,3 +1,4 @@
+import { retirarProductoLocal } from './RetirarProducto';
 import { SQLitePedidoRepository } from "../repositories/SQLitePedidoRepository";
 import type { PedidoRepository } from "../repositories/PedidoRepository";
 
@@ -8,7 +9,7 @@ import type { PedidoRepository } from "../repositories/PedidoRepository";
 export class PedidoRepositorySingleton {
   private static instancia: PedidoRepositorySingleton | null = null;
   private repositorio: PedidoRepository;
-  private readonly proxy:PedidoRepository={obtenerPorId:id=>this.repositorio.obtenerPorId(id),guardar:p=>this.repositorio.guardar(p),suscribir:(id,fn)=>this.repositorio.suscribir(id,fn),obtenerComandaPorMesa:m=>this.repositorio.obtenerComandaPorMesa(m),listarComandasActivas:()=>this.repositorio.listarComandasActivas(),crearComanda:(m,u)=>this.repositorio.crearComanda(m,u),agregarProducto:(id,p,u)=>this.repositorio.agregarProducto(id,p,u)};
+  private readonly proxy:PedidoRepository={retirarProducto:(id,linea,motivo,revision)=>this.repositorio.retirarProducto?this.repositorio.retirarProducto(id,linea,motivo,revision):retirarProductoLocal(this.repositorio,id,linea,revision),obtenerPorId:id=>this.repositorio.obtenerPorId(id),guardar:p=>this.repositorio.guardar(p),suscribir:(id,fn)=>this.repositorio.suscribir(id,fn),obtenerComandaPorMesa:m=>this.repositorio.obtenerComandaPorMesa(m),listarComandasActivas:()=>this.repositorio.listarComandasActivas(),crearComanda:(m,u)=>this.repositorio.crearComanda(m,u),agregarProducto:(id,p,u)=>this.repositorio.agregarProducto(id,p,u)};
 
   private constructor() {
     this.repositorio = new SQLitePedidoRepository();

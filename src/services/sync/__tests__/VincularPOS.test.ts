@@ -10,12 +10,12 @@ test('solo admite QR propios con direccion privada y vencimiento valido',()=>{
  expect(()=>leerQRPOS('https://example.com')).toThrow();
 });
 test('canjea el codigo y guarda el token; no altera la vinculacion si falla',async()=>{
- const fetchOriginal=global.fetch;
+ const fetchMock=jest.spyOn(globalThis,'fetch');
  try{
-  global.fetch=jest.fn<typeof fetch>().mockResolvedValue({ok:true,json:async()=>({versionContrato:2,token:'a'.repeat(64)})} as Response);
+  fetchMock.mockResolvedValue({ok:true,json:async()=>({versionContrato:2,token:'a'.repeat(64)})} as Response);
   await vincularDesdeQR(JSON.stringify(qr()));expect(guardarConfiguracionPOS).toHaveBeenCalledWith(expect.objectContaining({urlBase:qr().urlBase,token:'a'.repeat(64)}));
   jest.mocked(guardarConfiguracionPOS).mockClear();
-  global.fetch=jest.fn<typeof fetch>().mockResolvedValue({ok:false,json:async()=>({error:'QR utilizado'})} as Response);
+  fetchMock.mockResolvedValue({ok:false,json:async()=>({error:'QR utilizado'})} as Response);
   await expect(vincularDesdeQR(JSON.stringify(qr()))).rejects.toThrow('QR utilizado');expect(guardarConfiguracionPOS).not.toHaveBeenCalled();
- }finally{global.fetch=fetchOriginal;}
+ }finally{fetchMock.mockRestore();}
 });

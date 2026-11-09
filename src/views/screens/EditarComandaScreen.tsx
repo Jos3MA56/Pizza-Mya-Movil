@@ -67,7 +67,7 @@ export function EditarComandaScreen({
         <Text style={styles.titulo}>Editar comanda</Text><Pressable onPress={()=>void vm.recargar()}><Text style={styles.regresar}>Volver a cargar la comanda</Text></Pressable>
 
         <Text style={styles.subtitulo}>
-          {vm.pedido?.mesaId
+          {vm.pedido?.tipoPedido==='para_llevar'?'Para llevar · '+vm.pedido.nombreCliente:vm.pedido?.mesaId
             ? `Mesa ${vm.pedido.mesaId}`
             : 'Comanda local'}
         </Text>

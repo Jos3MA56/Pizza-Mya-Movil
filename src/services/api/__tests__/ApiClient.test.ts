@@ -11,7 +11,7 @@ describe("ApiClient - pruebas unitarias", () => {
   const baseUrl = "https://api-pruebas.example.com";
 
   test("realiza una solicitud POST correctamente", async () => {
-    const fetchSimulado = jest.fn<() => Promise<Response>>().mockResolvedValue({
+    const fetchSimulado = jest.fn<typeof fetch>().mockResolvedValue({
       ok: true,
       status: 200,
       headers: {
@@ -66,7 +66,7 @@ describe("ApiClient - pruebas unitarias", () => {
   });
 
   test("maneja credenciales rechazadas con HTTP 401", async () => {
-    const fetchSimulado = jest.fn<() => Promise<Response>>().mockResolvedValue({
+    const fetchSimulado = jest.fn<typeof fetch>().mockResolvedValue({
       ok: false,
       status: 401,
     } as Response);

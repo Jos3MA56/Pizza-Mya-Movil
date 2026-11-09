@@ -1,14 +1,16 @@
 
-import React, { useState } from 'react';
+import * as Crypto from 'expo-crypto';
+import React, { useState, useRef } from 'react';
 import {
   View,
+  TextInput,
   Text,
   Pressable,
   ScrollView,
   StyleSheet,
 } from 'react-native';
 
-export type TipoPedido = 'mesa';
+export type TipoPedido = 'mesa' | 'para_llevar';
 
 type OpcionPedido = {
   id: string;
@@ -20,7 +22,7 @@ type OpcionPedido = {
 
 interface Props {
   onRegresar: () => void;
-  onContinuar: (tipo: TipoPedido) => void;
+  onContinuar: (tipo: TipoPedido, nombreCliente?: string, requestId?: string) => void | Promise<void>;
 }
 
 const OPCIONES: OpcionPedido[] = [
@@ -36,7 +38,7 @@ const OPCIONES: OpcionPedido[] = [
     titulo: 'Para llevar',
     descripcion: 'Pedido para recoger',
     icono: '🛍️',
-    disponible: false,
+    disponible: true,
   },
   {
     id: 'reparto',
@@ -61,10 +63,24 @@ export function TipoPedidoScreen({
   const [seleccionado, setSeleccionado] =
     useState<TipoPedido>('mesa');
 
+  const [nombre,setNombre]=useState('');
+  const [ocupado,setOcupado]=useState(false);
+  const [error,setError]=useState('');
+  const solicitud=useRef<{id:string;nombre:string}|null>(null);
+  async function continuar(){
+    if(ocupado)return;
+    if(seleccionado==='para_llevar'&&!nombre.trim()){setError('Escribe el nombre de quien recogerá el pedido.');return;}
+    setOcupado(true);setError('');
+    try{
+      if(seleccionado==='para_llevar')solicitud.current??={id:Crypto.randomUUID(),nombre:nombre.trim()};
+      await onContinuar(seleccionado,solicitud.current?.nombre,solicitud.current?.id);
+    }catch(e){setError(e instanceof Error?e.message:'No se pudo abrir el pedido. Intenta de nuevo.');}
+    finally{setOcupado(false);}
+  }
   return (
     <View style={styles.container}>
       <ScrollView
-        contentContainerStyle={styles.content}
+        keyboardShouldPersistTaps="handled" contentContainerStyle={styles.content}
       >
         <Pressable
           style={styles.back}
@@ -93,8 +109,8 @@ export function TipoPedidoScreen({
             return (
               <Pressable
                 key={opcion.id}
-                disabled={!opcion.disponible}
-                onPress={() => setSeleccionado('mesa')}
+                disabled={!opcion.disponible||ocupado||!!solicitud.current}
+                onPress={() => setSeleccionado(opcion.id as TipoPedido)}
                 accessibilityRole="radio"
                 accessibilityState={{
                   selected: activa,
@@ -132,16 +148,22 @@ export function TipoPedidoScreen({
             );
           })}
         </View>
+        {seleccionado==='para_llevar'&&<View style={{gap:10,marginTop:8}}>
+          <Text style={styles.cardTitle}>¿Para quién es el pedido?</Text>
+          <TextInput accessibilityLabel="Nombre del cliente" placeholder="Ej. Ana López" value={nombre} onChangeText={setNombre} editable={!ocupado&&!solicitud.current} maxLength={100} autoCapitalize="words" style={{backgroundColor:'white',borderWidth:1,borderColor:'#E7E5E4',borderRadius:12,padding:16,fontSize:16,color:'#292524'}} />
+          <Text style={styles.description}>Este nombre aparecerá en la comanda y en cocina.</Text>
+        </View>}
+        {!!error&&<Text accessibilityRole="alert" style={{color:'#991F19',marginTop:14}}>{error}</Text>}
       </ScrollView>
 
       <View style={styles.footer}>
         <Pressable
           style={styles.continueButton}
-          onPress={() => onContinuar(seleccionado)}
+          disabled={ocupado} onPress={()=>void continuar()}
           accessibilityRole="button"
         >
           <Text style={styles.continueText}>
-            Continuar
+            {ocupado?'Abriendo pedido…':'Continuar'}
           </Text>
         </Pressable>
       </View>

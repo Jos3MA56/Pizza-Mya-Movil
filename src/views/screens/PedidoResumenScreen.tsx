@@ -1,4 +1,5 @@
 
+import type { ProductoComanda } from '../../models/Pedido';
 import React, { useState } from 'react';
 import { CatalogoScreen } from './CatalogoScreen';
 import {
@@ -8,7 +9,10 @@ import {
   ScrollView,
   StyleSheet,
   ActivityIndicator,
-  Alert,
+  Modal,
+  TextInput,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -43,10 +47,33 @@ export function PedidoResumenScreen({
     cargando,
     error,
     totalFormateado,
+    guardarNota, guardandoNota,
+    errorAccion, retirando, retirarProducto, limpiarErrorAccion,
   } = usePedidoResumenViewModel(pedidoId);
 
   const [seccion, setSeccion] = useState<'catalogo' | 'resumen'>('catalogo');
 
+  const [seleccionRetiro,setSeleccionRetiro]=useState<{producto:ProductoComanda;revision?:number}|null>(null);
+  const [motivo,setMotivo]=useState('');
+  const [notas,setNotas]=useState<Record<string,{texto:string;revision?:number}>>({});
+  const [erroresNota,setErroresNota]=useState<Record<string,string>>({});
+  const hayNotas=Object.keys(notas).some(id=>pedido?.productos?.some(p=>p.id===id&&p.estado!=='cancelado'));
+  async function confirmarNota(id:string){
+    const borrador=notas[id];if(!borrador)return;
+    setErroresNota(e=>({...e,[id]:''}));
+    try{const actualizado=await guardarNota(id,borrador.texto,borrador.revision);setNotas(prev=>{const copia={...prev};delete copia[id];
+      if(borrador.revision!==undefined&&actualizado.revision===borrador.revision+1){for(const clave of Object.keys(copia)){if(copia[clave].revision===borrador.revision)copia[clave]={...copia[clave],revision:actualizado.revision};}}
+      return copia;});}
+    catch(e){setErroresNota(prev=>({...prev,[id]:e instanceof Error?e.message:'No se pudo guardar la nota.'}));}
+  }
+
+  const esBebidaRetiro=/^bebidas?$/i.test(seleccionRetiro?.producto.categoria?.trim()??'');
+  const requiereMotivo=Boolean(seleccionRetiro?.producto.publicada)&&!esBebidaRetiro;
+  const confirmarRetiro=async()=>{
+    if(!seleccionRetiro)return;
+    const ok=await retirarProducto(seleccionRetiro.producto.id,requiereMotivo?motivo.trim():undefined,seleccionRetiro.revision);
+    if(ok){setSeleccionRetiro(null);setMotivo('');}
+  };
   const productos = pedido?.productos ?? [];
 
   const productosVisibles = productos.filter(
@@ -59,6 +86,7 @@ export function PedidoResumenScreen({
         <Pressable
           onPress={onRegresar}
           accessibilityRole="button"
+          style={styles.volver}
         >
           <Text style={styles.regresar}>
             ← Regresar
@@ -66,11 +94,7 @@ export function PedidoResumenScreen({
         </Pressable>
 
         <Text style={styles.titulo}>
-          Comanda
-        </Text>
-
-        <Text style={styles.subtitulo}>
-          Elige productos y revisa tu pedido sin salir de la comanda.
+          {pedido?.tipoPedido==='para_llevar'?'Para llevar · '+pedido.nombreCliente:pedido?.mesaId != null ? `Comanda · Mesa ${pedido.mesaId}` : 'Comanda'}
         </Text>
       </View>
 
@@ -88,6 +112,8 @@ export function PedidoResumenScreen({
         <View style={styles.centrado}>
           <Text style={styles.error}>{error}</Text>
         </View>
+      ) : pedido?.estado==='cerrado' ? (
+        <View style={styles.centrado}><Text style={styles.titulo}>{pedido?.tipoPedido==='para_llevar'?'Pedido cerrado':'Mesa libre'}</Text><Text style={styles.ayuda}>La comanda se cerró desde el POS.</Text><Pressable accessibilityRole="button" onPress={onRegresar}><Text style={styles.regresar}>Volver al inicio</Text></Pressable></View>
       ) : !pedido ? (
         <View style={styles.centrado}>
           <Text style={styles.error}>
@@ -112,15 +138,16 @@ export function PedidoResumenScreen({
             style={styles.contenido}
             contentContainerStyle={styles.scroll}
             showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
           >
             <View style={styles.tarjetaMesa}>
               <View>
                 <Text style={styles.etiqueta}>
-                  MESA ASIGNADA
+                  {pedido.tipoPedido==='para_llevar'?'PARA LLEVAR':'MESA ASIGNADA'}
                 </Text>
 
                 <Text style={styles.numeroMesa}>
-                  {pedido.mesaId !== undefined
+                  {pedido.tipoPedido==='para_llevar'?pedido.nombreCliente:pedido.mesaId !== undefined
                     ? `Mesa ${pedido.mesaId}`
                     : 'Sin mesa'}
                 </Text>
@@ -178,6 +205,7 @@ export function PedidoResumenScreen({
                   key={producto.id}
                   style={styles.producto}
                 >
+                  <View style={styles.productoFila}>
                   <View style={styles.cantidad}>
                     <Text style={styles.cantidadTexto}>
                       {producto.cantidad}x
@@ -192,49 +220,45 @@ export function PedidoResumenScreen({
                     <Text style={styles.productoDescripcion}>
                       {producto.categoria}
                       {producto.tamanio ? ' · ' + producto.tamanio : ''}
+                      {producto.orillaNombre ? ' · ' + producto.orillaNombre : ''}
                       {' · '}
-                      {producto.estado.replace(/_/g, ' ')}
+                      {(producto.estadoCocina ?? producto.estado).replace(/_/g, ' ')}
                     </Text>
 
-                    {producto.observaciones ? (
-                      <Text style={styles.nota}>
-                        Nota: {producto.observaciones}
-                      </Text>
-                    ) : null}
+                    {pedido.estado==='borrador' && !pedido.preparada && producto.estado==='pendiente' && (!producto.publicada || producto.estadoCocina==='pendiente') && <Pressable accessibilityRole="button" accessibilityLabel={(producto.publicada?'Cancelar ':'Quitar ')+producto.nombre} disabled={!!retirando||!!guardandoNota||pedido.sinConexion} style={styles.retirar} onPress={()=>{limpiarErrorAccion();setMotivo('');setSeleccionRetiro({producto,revision:pedido.revision});}}><Text style={styles.retirarTexto}>{producto.publicada&&!/^bebidas?$/i.test(producto.categoria.trim())?'Cancelar con motivo':'Quitar producto'}</Text></Pressable>}
+                    {producto.publicada && producto.estadoCocina && producto.estadoCocina!=='pendiente' && <Text style={styles.bloqueoRetiro}>Preparación iniciada: ya no se puede cancelar aquí.</Text>}
                   </View>
 
                   <Text style={styles.precio}>
                     ${producto.subtotal.toFixed(2)}
                   </Text>
+                  </View>
+                  <View style={styles.notaProducto}>
+                    <Text style={styles.notaEtiqueta}>Nota para este producto</Text>
+                    <TextInput accessibilityLabel={'Nota para '+producto.nombre} testID={'nota-producto-'+producto.id}
+                      multiline maxLength={1000} textAlignVertical="top" placeholder={producto.publicada?'Sin nota registrada':'Ej. sin tocino, bien cocida…'}
+                      editable={!producto.publicada&&producto.estado==='pendiente'&&pedido.estado==='borrador'&&!pedido.preparada&&!pedido.sinConexion&&!guardandoNota&&!retirando}
+                      value={producto.publicada?(producto.observaciones??''):(notas[producto.id]?.texto??producto.observaciones??'')}
+                      onChangeText={texto=>{setErroresNota(e=>({...e,[producto.id]:''}));setNotas(prev=>({...prev,[producto.id]:{texto,revision:prev[producto.id]?.revision??pedido.revision}}));}}
+                      style={[styles.notaCampo,producto.publicada&&styles.notaBloqueada]}/>
+                    {producto.publicada&&<Text style={styles.notaAyuda}>Nota enviada a cocina.</Text>}
+                    {!!erroresNota[producto.id]&&<Text accessibilityRole="alert" style={styles.errorNota}>{erroresNota[producto.id]}</Text>}
+                    {!!notas[producto.id]&&producto.publicada&&<Text style={styles.errorNota}>El producto se envió antes de guardar esta nota. Descarta el cambio pendiente.</Text>}
+                    {!!notas[producto.id]&&<View style={styles.notaAcciones}>
+                      {!producto.publicada&&<Pressable accessibilityRole="button" accessibilityLabel={'Guardar nota de '+producto.nombre} disabled={!!guardandoNota||!!retirando||pedido.sinConexion} onPress={()=>void confirmarNota(producto.id)} style={styles.guardarNota}>
+                        {guardandoNota===producto.id?<ActivityIndicator color={C.blanco}/>:<Text style={styles.guardarNotaTexto}>Guardar nota</Text>}
+                      </Pressable>}
+                      <Pressable accessibilityRole="button" accessibilityLabel={'Descartar nota de '+producto.nombre} disabled={!!guardandoNota} onPress={()=>{setNotas(prev=>{const copia={...prev};delete copia[producto.id];return copia;});setErroresNota(prev=>({...prev,[producto.id]:''}));}} style={styles.descartarNota}><Text style={styles.retirarTexto}>Descartar</Text></Pressable>
+                    </View>}
+                  </View>
                 </View>
               ))
             )}
 
-            <Pressable disabled={pedido.preparada} style={styles.agregar} onPress={() => setSeccion('catalogo')} accessibilityRole="button">
-              <Text style={styles.agregarTexto}>+ Agregar productos</Text>
-            </Pressable>
-            <Pressable disabled={pedido.preparada} style={styles.agregar} onPress={onEditarComanda} accessibilityRole="button">
-              <Text style={styles.agregarTexto}>✎ Editar comanda</Text>
-            </Pressable>
-
-            <View style={styles.observaciones}>
-              <Text style={styles.observacionesTitulo}>
-                Observaciones para cocina
-              </Text>
-
-              <Text style={styles.observacionesTexto}>
-                {pedido.observaciones?.trim() ||
-                  'Sin observaciones registradas.'}
-              </Text>
-            </View>
-
-            <Text style={styles.aviso}>
-              {pedido.compartida?(pedido.sinConexion?'Sin conexion: copia guardada. Conecta con el POS para editar.':'Cuenta compartida: cambios visibles entre celulares. En Seguimiento envia solamente los productos nuevos. Las lineas ya enviadas a cocina estan protegidas.'):(pedido.preparada?'Instantanea preparada: edicion bloqueada. ':'')+'Comanda local guardada en SQLite. Consulta Seguimiento para enviarla.'}
-            </Text>
           </ScrollView>}
 
-          <View style={styles.pie}>
-            <View style={styles.totalFila}>
+          <View style={[styles.pie, seccion === 'catalogo' && !pedido.preparada && styles.pieCatalogo]}>
+            <View style={[styles.totalFila, seccion === 'catalogo' && !pedido.preparada && styles.totalFilaCatalogo]}>
               <Text style={styles.totalEtiqueta}>
                 Total de la comanda
               </Text>
@@ -244,24 +268,48 @@ export function PedidoResumenScreen({
               </Text>
             </View>
 
-            <Pressable
-              style={styles.boton}
-              onPress={() => seccion === 'catalogo' ? setSeccion('resumen') : onSeguimiento?.()}
+            {hayNotas&&seccion==='resumen'&&<Text style={styles.avisoNotas}>Guarda o descarta las notas pendientes antes de enviar.</Text>}
+            {(seccion === 'resumen' || pedido.preparada) && <Pressable
+              disabled={hayNotas||!!guardandoNota}
+              style={[styles.boton,(hayNotas||!!guardandoNota)&&styles.retiroDeshabilitado]}
+              onPress={() => onSeguimiento?.()}
               accessibilityRole="button"
             >
               <Text style={styles.botonTexto}>
-                {seccion === 'catalogo' ? 'Ver mi pedido' : 'Preparar / seguimiento'}
+                Preparar / seguimiento
               </Text>
-            </Pressable>
+            </Pressable>}
           </View>
         </>
       )}
+      <Modal transparent animationType="fade" visible={seleccionRetiro!==null&&pedido?.estado!=='cerrado'} onRequestClose={()=>{if(!retirando)setSeleccionRetiro(null);}}>
+        <KeyboardAvoidingView behavior={Platform.OS==='ios'?'padding':'height'} style={styles.fondoModal}>
+          <View style={styles.panelRetiro} accessibilityViewIsModal>
+            <ScrollView keyboardShouldPersistTaps="handled">
+              <Text accessibilityRole="header" style={styles.tituloRetiro}>{requiereMotivo?'Cancelar producto':'Quitar producto'}</Text>
+              <Text style={styles.nombreRetiro}>{seleccionRetiro?.producto.cantidad} × {seleccionRetiro?.producto.nombre}</Text>
+              <Text style={styles.detalleRetiro}>Se descontarán ${seleccionRetiro?.producto.subtotal.toFixed(2)} de esta comanda.</Text>
+              {requiereMotivo ? <>
+                <Text style={styles.detalleRetiro}>Solo se permite si cocina aún no inicia la preparación. El motivo y los datos de la comanda quedarán registrados.</Text>
+                <TextInput accessibilityLabel="Motivo de cancelación" placeholder="¿Por qué se cancela?" multiline maxLength={500} editable={!retirando} value={motivo} onChangeText={setMotivo} style={styles.motivoRetiro}/>
+                <Text style={styles.contadorMotivo}>{motivo.trim().length}/500 · mínimo 3 caracteres</Text>
+              </> : <Text style={styles.detalleRetiro}>{esBebidaRetiro?'La bebida se quitará de la comanda sin solicitar un motivo.':'El producto todavía no se ha enviado a cocina.'}</Text>}
+              {!!errorAccion && <Text accessibilityRole="alert" style={styles.errorRetiro}>{errorAccion}</Text>}
+              <Pressable accessibilityRole="button" disabled={!!retirando||(requiereMotivo&&motivo.trim().length<3)} onPress={()=>void confirmarRetiro()} style={[styles.confirmarRetiro,(!!retirando||(requiereMotivo&&motivo.trim().length<3))&&styles.retiroDeshabilitado]}>{retirando?<ActivityIndicator color="#FFF"/>:<Text style={styles.confirmarRetiroTexto}>{requiereMotivo?'Confirmar cancelación':'Confirmar retiro'}</Text>}</Pressable>
+              <Pressable accessibilityRole="button" disabled={!!retirando} onPress={()=>setSeleccionRetiro(null)} style={styles.conservar}><Text style={styles.retirarTexto}>Conservar producto</Text></Pressable>
+            </ScrollView>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  pestanas: { flexDirection: 'row', paddingHorizontal: 12, gap: 8, marginBottom: 8 },
+  retirar:{minHeight:44,justifyContent:'center',alignSelf:'flex-start',paddingRight:12,marginTop:4},retirarTexto:{color:C.rojo,fontWeight:'700'},bloqueoRetiro:{fontSize:12,lineHeight:18,color:C.secundario,marginTop:8},
+  fondoModal:{flex:1,backgroundColor:'#0008',justifyContent:'center',padding:20},panelRetiro:{maxHeight:'85%',backgroundColor:C.blanco,borderRadius:20,padding:20},tituloRetiro:{fontSize:23,fontWeight:'800',color:C.texto,marginBottom:12},nombreRetiro:{fontSize:17,fontWeight:'700',color:C.texto,lineHeight:24},detalleRetiro:{color:C.secundario,lineHeight:21,marginTop:10},motivoRetiro:{marginTop:16,borderWidth:1,borderColor:C.borde,borderRadius:12,padding:12,minHeight:90,textAlignVertical:'top',color:C.texto},contadorMotivo:{color:C.secundario,fontSize:12,marginTop:5},errorRetiro:{color:C.rojo,lineHeight:21,marginTop:12},confirmarRetiro:{minHeight:48,justifyContent:'center',alignItems:'center',backgroundColor:C.rojo,borderRadius:12,marginTop:18},confirmarRetiroTexto:{color:C.blanco,fontWeight:'700'},retiroDeshabilitado:{opacity:0.45},conservar:{minHeight:48,justifyContent:'center',alignItems:'center',marginTop:6},
+
+  pestanas: { flexDirection: 'row', paddingHorizontal: 12, gap: 8, marginBottom: 6 },
   pestana: { flex: 1, paddingVertical: 12, paddingHorizontal: 6, borderRadius: 12, alignItems: 'center' },
   pestanaActiva: { backgroundColor: '#FFE7D2' },
   contenedor: {
@@ -269,25 +317,20 @@ const styles = StyleSheet.create({
     backgroundColor: C.fondo,
   },
   encabezado: {
-    paddingHorizontal: 20,
-    paddingTop: 18,
-    paddingBottom: 18,
+    paddingHorizontal: 16,
+    paddingTop: 0,
+    paddingBottom: 10,
   },
+  volver: { minHeight: 44, justifyContent: 'center', alignSelf: 'flex-start' },
   regresar: {
     fontSize: 15,
     color: C.rojo,
     fontWeight: '700',
-    marginBottom: 25,
   },
   titulo: {
-    fontSize: 27,
+    fontSize: 24,
     fontWeight: '900',
     color: C.texto,
-  },
-  subtitulo: {
-    fontSize: 14,
-    color: C.secundario,
-    marginTop: 8,
   },
   contenido: {
     flex: 1,
@@ -395,6 +438,7 @@ const styles = StyleSheet.create({
     marginTop: 9,
     lineHeight: 19,
   },
+  productoFila:{flexDirection:'row',alignItems:'center',gap:11},notaProducto:{marginTop:12,borderTopWidth:1,borderTopColor:C.borde,paddingTop:12},notaEtiqueta:{fontSize:12,fontWeight:'700',color:C.texto,marginBottom:7},notaCampo:{minHeight:64,borderWidth:1,borderColor:C.borde,borderRadius:10,padding:10,color:C.texto,fontSize:14,backgroundColor:C.fondo},notaBloqueada:{backgroundColor:'#F5F2EF',color:C.secundario},notaAyuda:{fontSize:11,color:C.secundario,marginTop:5},notaAcciones:{flexDirection:'row',gap:12,alignItems:'center',marginTop:8},guardarNota:{minHeight:44,justifyContent:'center',paddingHorizontal:16,backgroundColor:C.rojo,borderRadius:10},guardarNotaTexto:{color:C.blanco,fontWeight:'700'},descartarNota:{minHeight:44,justifyContent:'center',paddingHorizontal:8},errorNota:{color:C.rojo,marginTop:6,fontSize:12},avisoNotas:{color:C.rojo,fontSize:12,marginBottom:10},
   producto: {
     backgroundColor: C.blanco,
     borderRadius: 15,
@@ -402,8 +446,6 @@ const styles = StyleSheet.create({
     borderColor: C.borde,
     padding: 13,
     marginBottom: 10,
-    flexDirection: 'row',
-    alignItems: 'center',
     gap: 11,
   },
   cantidad: {
@@ -482,6 +524,8 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     lineHeight: 17,
   },
+  pieCatalogo: { paddingHorizontal: 16, paddingVertical: 12 },
+  totalFilaCatalogo: { marginBottom: 0 },
   pie: {
     backgroundColor: C.blanco,
     padding: 18,

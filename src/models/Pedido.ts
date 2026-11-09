@@ -3,7 +3,7 @@
  * No depende de React ni de servicios HTTP.
  */
 
-export type EstadoPedido = "borrador" | "enviado" | "cancelado";
+export type EstadoPedido = "borrador" | "enviado" | "cancelado" | "cerrado";
 
 export type EstadoProducto =
   | "pendiente"
@@ -15,7 +15,17 @@ export type EstadoProducto =
 // Nombre de categoría del backend; no limitar a las tres categorías del prototipo.
 export type CategoriaProducto = string;
 
+export type PorcionPizza = '1/2' | '1/4' | '3/4' | '1/3';
+export interface PartePizza { productoId: string; productoTamanioId: string; porcion: PorcionPizza }
+
 export interface ProductoComanda {
+  combinacion?: PartePizza[];
+  orillaId?: string;
+  orillaNombre?: string;
+  orillaCostoCentavos?: number;
+  estadoCocina?: 'pendiente' | 'en_preparacion' | 'listo';
+  cancelacionMotivo?: string;
+  canceladoEn?: string;
   publicada?: boolean;
   pedidoPOS?: string;
   id: string;
@@ -46,6 +56,11 @@ export interface CambioComanda {
 }
 
 export interface Pedido {
+  productosArchivados?: (ProductoComanda & {precioCentavos?:number})[];
+  totalCierreCentavos?: number;
+  cerradoEn?: string;
+  tipoPedido?: 'mesa' | 'para_llevar';
+  nombreCliente?: string;
   compartida?: boolean;
   sinConexion?: boolean;
   revision?: number;

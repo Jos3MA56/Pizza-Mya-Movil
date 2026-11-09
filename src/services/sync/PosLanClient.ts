@@ -1,11 +1,12 @@
-export interface ProductoPedidoPOS { productoId: string; cantidad: number; lineaId?: string; productoTamanioId?: string; tamanioId?: string; observaciones?: string }
+import type { PartePizza } from '../../models/Pedido';
+export interface ProductoPedidoPOS { combinacion?: PartePizza[]; orillaId?: string; productoId: string; cantidad: number; lineaId?: string; productoTamanioId?: string; tamanioId?: string; observaciones?: string }
 export interface PayloadPedidoPOS { versionContrato?: 2; requestId: string; comandaLocalId?: string; mesa: number; meseroId: string; observaciones?: string; totalLocalCentavos?: number; productos: ProductoPedidoPOS[] }
 export interface PedidoConfirmadoPOS { id: string; requestId: string; folio: string; totalCentavos: number; contenido?: PayloadPedidoPOS; cocinaEstado?: string }
 export interface PedidoConsultadoPOS extends PedidoConfirmadoPOS { mesa: number; meseroId: string; productos: ProductoPedidoPOS[] }
 export interface ResultadoEnvioPOS { status: 200 | 201; duplicado: boolean; pedido: PedidoConfirmadoPOS }
 export class ErrorHTTPPOS extends Error { constructor(public readonly status:number,mensaje:string){super(mensaje);this.name='ErrorHTTPPOS';} }
 export function contenidoPOS(p: PayloadPedidoPOS): string {
- return JSON.stringify({versionContrato:p.versionContrato,requestId:p.requestId,comandaLocalId:p.comandaLocalId,mesa:p.mesa,meseroId:p.meseroId,observaciones:p.observaciones??'',totalLocalCentavos:p.totalLocalCentavos,productos:p.productos.map(i=>({lineaId:i.lineaId,productoId:i.productoId,productoTamanioId:i.productoTamanioId,tamanioId:i.tamanioId,cantidad:i.cantidad,observaciones:i.observaciones??''})).sort((a,b)=>(a.lineaId??a.productoId).localeCompare(b.lineaId??b.productoId))});
+ return JSON.stringify({versionContrato:p.versionContrato,requestId:p.requestId,comandaLocalId:p.comandaLocalId,mesa:p.mesa,meseroId:p.meseroId,observaciones:p.observaciones??'',totalLocalCentavos:p.totalLocalCentavos,productos:p.productos.map(i=>({... (i.combinacion?{combinacion:i.combinacion}:{}),... (i.orillaId?{orillaId:i.orillaId}:{}),lineaId:i.lineaId,productoId:i.productoId,productoTamanioId:i.productoTamanioId,tamanioId:i.tamanioId,cantidad:i.cantidad,observaciones:i.observaciones??''})).sort((a,b)=>(a.lineaId??a.productoId).localeCompare(b.lineaId??b.productoId))});
 }
 export async function solicitudPOS(urlBase:string,token:string,ruta:string,init:RequestInit={}):Promise<any>{
  if(!/^https?:\/\//.test(urlBase)||!/^[a-fA-F0-9]{64}$/.test(token))throw new Error('Configuración LAN inválida.');
